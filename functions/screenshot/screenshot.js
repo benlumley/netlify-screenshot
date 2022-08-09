@@ -56,7 +56,8 @@ console.log(url);
     args: args,
     defaultViewport: chromium.defaultViewport,
     executablePath: await chromium.executablePath,
-    headless: true // chromium.headless,
+    headless: true, // chromium.headless,
+    userDataDir: '/tmp'
   })
 
   console.log(1);
