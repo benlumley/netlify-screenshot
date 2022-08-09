@@ -20,7 +20,7 @@ exports.handler = async (event, context) => {
 
 //   await page.setViewport({ width, height })
 
-  await page.goto(url, { waitUntil: "networkidle0" })
+  await page.goto(url, { waitUntil: "networkidle2" })
 
   const screenshot = await page.screenshot()
 
