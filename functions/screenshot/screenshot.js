@@ -22,7 +22,10 @@ exports.handler = async (event, context) => {
 
   await page.goto(url, { waitUntil: "networkidle2" })
 
-  const screenshot = await page.screenshot()
+  await page.waitForSelector('#screenshotPdfFrame');
+
+  const frame = page.$('#screenshotPdfFrame');
+  const screenshot = await frame.screenshot()
 
   await browser.close()
 
