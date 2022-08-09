@@ -18,7 +18,7 @@ exports.handler = async (event, context) => {
 
   const page = await browser.newPage()
 
-  await page.setViewport({ width, height })
+//   await page.setViewport({ width, height })
 
   await page.goto(url, { waitUntil: "networkidle0" })
 
