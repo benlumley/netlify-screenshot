@@ -11,7 +11,7 @@ exports.handler = async (event, context) => {
 
   const browser = await chromium.puppeteer.launch({
     args: chromium.args,
-    defaultViewport: chromium.defaultViewport,
+    defaultViewport: null,
     executablePath: await chromium.executablePath,
     headless: chromium.headless,
   })
@@ -20,7 +20,7 @@ exports.handler = async (event, context) => {
 
   await page.setViewport({ width, height })
 
-  await page.goto(url, { waitUntil: "networkidle2" })
+  await page.goto(url, { waitUntil: "networkidle0" })
 
   const screenshot = await page.screenshot()
 
