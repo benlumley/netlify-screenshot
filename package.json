@@ -7,8 +7,8 @@
   "author": "Steve Lacey <steve@steve.ly>",
   "license": "MIT",
   "dependencies": {
-    "chrome-aws-lambda": "^9.1.0",
-    "puppeteer-core": "^9.1.1",
+    "chrome-aws-lambda": "^10.1.0",
+    "puppeteer-core": "^16.1.0",
     "qs": "^6.10.1"
   }
 }
