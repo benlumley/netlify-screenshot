@@ -15,7 +15,7 @@ exports.handler = async (event, context) => {
     }
     event.queryStringParameters.takingss = 1;
   const url = `${process.env.BASE_URL}${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
-
+console.log(url);
     let args = chromium.args;
     args.push(...[
         '--autoplay-policy=user-gesture-required',
