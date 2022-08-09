@@ -1,17 +1,22 @@
 const chromium = require("chrome-aws-lambda")
 const qs = require("qs")
 
-const width = 1200
-const height = 630
+const width = 1440
+const height = 1200
 const maxage = 60 * 60 * 24 * 7
 
 
 
 exports.handler = async (event, context) => {
-  const path = event.path.replace("/.netlify/functions", "").replace("/screenshot", "").replace(".png", "")
+  const path = event.path.replace("/.netlify/functions", "").replace("/screenshot", "").replace(".png", "");
+    if (path.indexOf('favicon.ico') > -1) {
+        return {
+            statusCode: 404
+        }
+    }
   event.queryStringParameters.takingss = 1;
   const url = `${process.env.BASE_URL}${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
-console.log(url);
+
 
     let args = chromium.args;
     args.push(...[
@@ -61,18 +66,29 @@ console.log(url);
   })
 
   console.log(1);
+  console.time('timer');
   const page = await browser.defaultPage()
     console.log(2);
+    console.timeLog('timer');
    await page.setViewport({ width, height })
     console.log(3);
+    console.timeLog('timer');
   await page.goto(url)
     console.log(4);
+    console.timeLog('timer');
   await page.waitForSelector('#screenshotPdfFrame');
     console.log(5);
+    console.timeLog('timer');
   const frame = await page.$('#screenshotPdfFrame');
     console.log(6);
-  const screenshot = await frame.screenshot({type:'jpeg'})
+    console.timeLog('timer');
+  const screenshot = await frame.screenshot({
+    type:'jpeg',
+    omitBackground: 'true',
+    quality: 90
+  })
     console.log(7);
+    console.timeEnd('timer');
 //   const screenshot = await page.screenshot();
 
   await browser.close()
