@@ -10,5 +10,8 @@
     "chrome-aws-lambda": "^10.1.0",
     "puppeteer-core": "^10.1.0",
     "qs": "^6.10.1"
+  },
+  "devDependencies": {
+    "puppeteer": "^10.1.0"
   }
 }

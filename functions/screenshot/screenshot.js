@@ -7,25 +7,28 @@ const maxage = 60 * 60 * 24 * 7
 
 exports.handler = async (event, context) => {
   const path = event.path.replace("/.netlify/functions", "").replace("/screenshot", "").replace(".png", "")
+  event.queryStringParameters.takingss = 1;
   const url = `${process.env.BASE_URL}${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
 
   const browser = await chromium.puppeteer.launch({
     args: chromium.args,
-    defaultViewport: null,
+    defaultViewport: chromium.defaultViewport,
     executablePath: await chromium.executablePath,
-    headless: chromium.headless,
+    headless: true // chromium.headless,
   })
 
-  const page = await browser.newPage()
+  const page = await browser.defaultPage()
 
-//   await page.setViewport({ width, height })
+   await page.setViewport({ width, height })
 
-  await page.goto(url, { waitUntil: "networkidle2" })
+  await page.goto(url)
 
   await page.waitForSelector('#screenshotPdfFrame');
 
-  const frame = page.$('#screenshotPdfFrame');
+  const frame = await page.$('#screenshotPdfFrame');
   const screenshot = await frame.screenshot()
+
+//   const screenshot = await page.screenshot();
 
   await browser.close()
 
