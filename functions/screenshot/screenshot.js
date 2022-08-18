@@ -15,6 +15,8 @@ exports.handler = async (event, context) => {
         }
     }
   event.queryStringParameters.takingss = 1;
+  event.queryStringParameters.cookieAccept = 1;
+  event.queryStringParameters.swnDismiss = 1;
   const url = `${process.env.BASE_URL}${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
 
 
