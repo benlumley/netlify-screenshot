@@ -75,7 +75,7 @@ exports.handler = async (event, context) => {
    await page.setViewport({ width, height })
     console.log(3);
     console.timeLog('timer');
-    await page.goto(url, { waitUntil: "networkidle2" })
+    await page.goto(url, { waitUntil: "networkidle0" })
     console.log(4);
     console.timeLog('timer');
   await page.waitForSelector('#screenshotPdfFrame');
