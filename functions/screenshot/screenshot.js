@@ -83,9 +83,8 @@ exports.handler = async (event, context) => {
     console.log(6);
     console.timeLog('timer');
   const screenshot = await frame.screenshot({
-    type:'jpeg',
-    omitBackground: 'true',
-    quality: 90
+    type:'png',
+    omitBackground: 'true'
   })
     console.log(7);
     console.timeEnd('timer');
@@ -97,8 +96,8 @@ exports.handler = async (event, context) => {
     statusCode: 200,
     headers: {
       "Cache-Control": `public, max-age=${maxage}`,
-      "Content-Type": "image/jpeg",
-      "Content-Disposition": "attachment; filename=iiag.jpg",
+      "Content-Type": "image/png",
+      "Content-Disposition": "attachment; filename=iiag.png",
       "Expires": new Date(Date.now() + maxage * 1000).toUTCString(),
     },
     body: screenshot.toString("base64"),
