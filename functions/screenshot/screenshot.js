@@ -72,7 +72,7 @@ exports.handler = async (event, context) => {
   const page = await browser.defaultPage()
     console.log(2);
     console.timeLog('timer');
-   await page.setViewport({ width, height })
+    await page.setViewport({ width, height, deviceScaleFactor: 2 })
     console.log(3);
     console.timeLog('timer');
     await page.goto(url, { waitUntil: "networkidle0" })
