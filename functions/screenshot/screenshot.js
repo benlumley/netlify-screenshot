@@ -99,7 +99,7 @@ exports.handler = async (event, context) => {
     headers: {
       "Cache-Control": `public, max-age=${maxage}`,
       "Content-Type": "image/png",
-      "Content-Disposition": "attachment; filename=iiag.png",
+      "Content-Disposition": "attachment; filename=2020-iiag.png",
       "Expires": new Date(Date.now() + maxage * 1000).toUTCString(),
     },
     body: screenshot.toString("base64"),
