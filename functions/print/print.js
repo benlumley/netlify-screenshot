@@ -78,7 +78,7 @@ exports.handler = async (event, context) => {
     await page.goto(url, { waitUntil: "networkidle0" })
     console.log(4);
     console.timeLog('timer');
-    await page.waitForSelector('#screenshotPdfFrame');
+    await page.waitForSelector(event.queryStringParameters.view === 'table' ? '#mifDataTable'  : '#screenshotPdfFrame');
     console.log(5);
     console.timeLog('timer');
 
