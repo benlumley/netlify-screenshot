@@ -105,7 +105,7 @@ exports.handler = async (event, context) => {
     statusCode: 200,
     headers: {
       "Content-Type": "application/pdf",
-        "Content-Disposition": "attachment; filename=2020-iiag.pdf",
+        "Content-Disposition": "attachment; filename=2022-iiag.pdf",
         "Cache-Control": `public, max-age=${maxage}`,
     },
     body: pdf.toString("base64"),
