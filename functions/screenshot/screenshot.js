@@ -70,7 +70,7 @@ exports.handler = async (event, context) => {
 
   console.log(1);
   console.time('timer');
-  const page = await browser.defaultPage()
+    const [page] = await browser.pages();
     console.log(2);
     console.timeLog('timer');
     await page.setViewport({ width, height, deviceScaleFactor: 2 })
