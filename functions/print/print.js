@@ -1,4 +1,5 @@
-const chromium = require("chrome-aws-lambda")
+const chromium = require("@sparticuz/chromium");
+const puppeteer = require("puppeteer-core");
 const qs = require("qs")
 
 const width = 1024
@@ -57,10 +58,10 @@ exports.handler = async (event, context) => {
         '--use-mock-keychain',
     ]);
 
-  const browser = await chromium.puppeteer.launch({
+  const browser = await puppeteer.launch({
     args: args,
     defaultViewport: chromium.defaultViewport,
-    executablePath: await chromium.executablePath,
+    executablePath: await chromium.executablePath(),
     headless: true, // chromium.headless,
     userDataDir: '/tmp',
 
