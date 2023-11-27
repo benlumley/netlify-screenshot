@@ -68,30 +68,18 @@ exports.handler = async (event, context) => {
     userDataDir: '/tmp'
   })
 
-  console.log(1);
-  console.time('timer');
     const [page] = await browser.pages();
-    console.log(2);
-    console.timeLog('timer');
     await page.setViewport({ width, height, deviceScaleFactor: 2 })
-    console.log(3);
-    console.timeLog('timer');
     await page.goto(url, { waitUntil: "networkidle0" })
-    console.log(4);
-    console.timeLog('timer');
-    await page.waitForSelector(event.queryStringParameters.view === 'table' ? '#mifDataTable'  : '#screenshotPdfFrame');
-    console.log(5);
-    console.timeLog('timer');
-  const frame = await page.$('#screenshotPdfFrame');
-    console.log(6);
-    console.timeLog('timer');
+    await page.waitForSelector('.gauge--chart');
+
+  const frame = await page.$('#page');
   const screenshot = await frame.screenshot({
     type:'png',
     omitBackground: 'true'
   })
-    console.log(7);
-    console.timeEnd('timer');
-//   const screenshot = await page.screenshot();
+
+  //   const screenshot = await page.screenshot();
 
   await browser.close()
 
@@ -100,7 +88,7 @@ exports.handler = async (event, context) => {
     headers: {
       "Cache-Control": `public, max-age=${maxage}`,
       "Content-Type": "image/png",
-      "Content-Disposition": "attachment; filename=2022-iiag.png",
+      "Content-Disposition": "attachment; filename=le-gauge-summary.png",
       "Expires": new Date(Date.now() + maxage * 1000).toUTCString(),
     },
     body: screenshot.toString("base64"),

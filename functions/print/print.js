@@ -68,20 +68,10 @@ exports.handler = async (event, context) => {
   })
 
 
-    console.log(1);
-    console.time('timer');
     const [page] = await browser.pages();
-    console.log(2);
-    console.timeLog('timer');
     await page.setViewport({ width, height, deviceScaleFactor: 2 })
-    console.log(3);
-    console.timeLog('timer');
     await page.goto(url, { waitUntil: "networkidle0" })
-    console.log(4);
-    console.timeLog('timer');
-    await page.waitForSelector(event.queryStringParameters.view === 'table' ? '#mifDataTable'  : '#screenshotPdfFrame');
-    console.log(5);
-    console.timeLog('timer');
+    await page.waitForSelector('.gauge--chart');
 
     page.emulateMediaType('screen');
     const pdf = await page.pdf({
@@ -96,17 +86,13 @@ exports.handler = async (event, context) => {
     },
   })
 
-  console.log(7);
-  console.timeEnd('timer');
-
-
   await browser.close()
 
   return {
     statusCode: 200,
     headers: {
       "Content-Type": "application/pdf",
-        "Content-Disposition": "attachment; filename=2022-iiag.pdf",
+        "Content-Disposition": "attachment; filename=le-gauge-summary.pdf",
         "Cache-Control": `public, max-age=${maxage}`,
     },
     body: pdf.toString("base64"),
