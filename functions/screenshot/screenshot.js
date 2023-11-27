@@ -18,8 +18,10 @@ exports.handler = async (event, context) => {
   event.queryStringParameters.takingss = 1;
   event.queryStringParameters.cookieAccept = 1;
   event.queryStringParameters.swnDismiss = 1;
+    // const url = `https://staging:password@leadership-ethos.onyx-sites.io/${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
   const url = `${process.env.BASE_URL}${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
 
+  console.log(url);
 
     let args = chromium.args;
     args.push(...[
@@ -63,6 +65,7 @@ exports.handler = async (event, context) => {
   const browser = await puppeteer.launch({
     args: args,
     defaultViewport: chromium.defaultViewport,
+    //   executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     executablePath: await chromium.executablePath(),
     headless: true, // chromium.headless,
     userDataDir: '/tmp'

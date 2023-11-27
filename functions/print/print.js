@@ -17,7 +17,8 @@ exports.handler = async (event, context) => {
     event.queryStringParameters.takingss = 1;
     event.queryStringParameters.cookieAccept = 1;
     event.queryStringParameters.swnDismiss = 1;
-  const url = `${process.env.BASE_URL}${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
+    // const url = `https://staging:password@leadership-ethos.onyx-sites.io/${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
+    const url = `${process.env.BASE_URL}${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
     console.log(url);
     let args = chromium.args;
     args.push(...[
@@ -62,11 +63,11 @@ exports.handler = async (event, context) => {
     args: args,
     defaultViewport: chromium.defaultViewport,
     executablePath: await chromium.executablePath(),
+    //   executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     headless: true, // chromium.headless,
     userDataDir: '/tmp',
 
   })
-
 
     const [page] = await browser.pages();
     await page.setViewport({ width, height, deviceScaleFactor: 2 })
