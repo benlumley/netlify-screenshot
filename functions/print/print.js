@@ -2,8 +2,8 @@ const chromium = require("@sparticuz/chromium");
 const puppeteer = require("puppeteer-core");
 const qs = require("qs")
 
-const width = 1024
-const height = 1200
+const width = 1440
+const height = 1280
 
 const maxage = 60 * 60 * 24 * 7
 
@@ -16,7 +16,7 @@ exports.handler = async (event, context) => {
     }
     event.queryStringParameters.screenshot = 1;
     event.queryStringParameters.cookieAccept = 1;
-    // const url = `https://staging:password@leadership-ethos.onyx-sites.io/${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
+    // const url = `http://leadershipethos.localhost/${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
     const url = `${process.env.BASE_URL}${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
     console.log(url);
     let args = chromium.args;
@@ -60,30 +60,29 @@ exports.handler = async (event, context) => {
 
   const browser = await puppeteer.launch({
     args: args,
-    defaultViewport: chromium.defaultViewport,
+    defaultViewport: { width, height, deviceScaleFactor: 2 },
     executablePath: await chromium.executablePath(),
     //   executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     headless: true, // chromium.headless,
     userDataDir: '/tmp',
+    emulateMediaType: 'screen',
 
   })
 
     const [page] = await browser.pages();
-    await page.setViewport({ width, height, deviceScaleFactor: 2 })
     await page.goto(url, { waitUntil: "networkidle0" })
     await page.waitForSelector('.gauge--chart');
 
-    page.emulateMediaType('screen');
+    await page.evaluate(function () {
+        document.getElementById('cookie-law-info-bar').remove();
+    });
+
+    await page.emulateMediaType('screen');
     const pdf = await page.pdf({
     format: "A4",
     printBackground: true,
-    scale: 0.5,
-    margin: {
-      top: 20,
-      right: 40,
-      bottom: 20,
-      left: 40,
-    },
+    scale: 0.8,
+    preferCSSPageSize: true
   })
 
   await browser.close()
@@ -91,7 +90,7 @@ exports.handler = async (event, context) => {
   return {
     statusCode: 200,
     headers: {
-      "Content-Type": "application/pdf",
+        "Content-Type": "application/pdf",
         "Content-Disposition": "attachment; filename=le-gauge-summary.pdf",
         "Cache-Control": `public, max-age=${maxage}`,
     },
