@@ -14,9 +14,8 @@ exports.handler = async (event, context) => {
             statusCode: 404
         }
     }
-    event.queryStringParameters.takingss = 1;
+    event.queryStringParameters.screenshot = 1;
     event.queryStringParameters.cookieAccept = 1;
-    event.queryStringParameters.swnDismiss = 1;
     // const url = `https://staging:password@leadership-ethos.onyx-sites.io/${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
     const url = `${process.env.BASE_URL}${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
     console.log(url);
