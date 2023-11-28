@@ -17,6 +17,7 @@ exports.handler = async (event, context) => {
     event.queryStringParameters.screenshot = 1;
     event.queryStringParameters.cookieAccept = 1;
     // const url = `http://leadershipethos.localhost/${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
+    // const url = `https://staging:password@leadership-ethos.onyx-sites.io${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
     const url = `${process.env.BASE_URL}${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
     console.log(url);
     let args = chromium.args;
@@ -62,7 +63,7 @@ exports.handler = async (event, context) => {
     args: args,
     defaultViewport: { width, height, deviceScaleFactor: 2 },
     executablePath: await chromium.executablePath(),
-    //   executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    // executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     headless: true, // chromium.headless,
     userDataDir: '/tmp',
     emulateMediaType: 'screen',
@@ -70,6 +71,7 @@ exports.handler = async (event, context) => {
   })
 
     const [page] = await browser.pages();
+    await page.setCacheEnabled(false);
     await page.goto(url, { waitUntil: "networkidle0" })
     await page.waitForSelector('.gauge--chart');
 
@@ -92,7 +94,7 @@ exports.handler = async (event, context) => {
     headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": "attachment; filename=le-gauge-summary.pdf",
-        "Cache-Control": `public, max-age=${maxage}`,
+        // "Cache-Control": `public, max-age=${maxage}`,
     },
     body: pdf.toString("base64"),
     isBase64Encoded: true,
