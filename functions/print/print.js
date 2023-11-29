@@ -93,7 +93,7 @@ exports.handler = async (event, context) => {
     statusCode: 200,
     headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": "attachment; filename=le-gauge-summary.pdf",
+        "Content-Disposition": "attachment; filename=Your Leadership Gauge Summary.pdf",
         // "Cache-Control": `public, max-age=${maxage}`,
     },
     body: pdf.toString("base64"),
