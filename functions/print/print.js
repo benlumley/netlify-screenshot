@@ -59,6 +59,7 @@ exports.handler = async (event, context) => {
         '--use-mock-keychain',
     ]);
 
+    console.log('check 1');
   const browser = await puppeteer.launch({
     args: args,
     defaultViewport: { width, height, deviceScaleFactor: 2 },
@@ -70,30 +71,39 @@ exports.handler = async (event, context) => {
 
   })
 
+    console.log('check 2');
     const [page] = await browser.pages();
+    console.log('check 3');
     await page.setCacheEnabled(false);
+    console.log('check 4');
     await page.goto(url, { waitUntil: "networkidle0" })
+    console.log('check 5');
     await page.waitForSelector('.gauge--chart');
+    console.log('check 6');
 
     await page.evaluate(function () {
         document.getElementById('cookie-law-info-bar').remove();
     });
+    console.log('check 7');
 
     await page.emulateMediaType('screen');
-    const pdf = await page.pdf({
-    format: "A4",
-    printBackground: true,
-    scale: 0.8,
-    preferCSSPageSize: true
-  })
+        console.log('check 8');
+        const pdf = await page.pdf({
+        format: "A4",
+        printBackground: true,
+        scale: 0.8,
+        preferCSSPageSize: true
+    })
+    console.log('check 9');
 
-  await browser.close()
+    await browser.close()
+    console.log('check 10');
 
   return {
     statusCode: 200,
     headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": "attachment; filename=Your Leadership Gauge Summary.pdf",
+        "Content-Disposition": "attachment; filename=YourLeadershipGaugeSummary.pdf",
         // "Cache-Control": `public, max-age=${maxage}`,
     },
     body: pdf.toString("base64"),
