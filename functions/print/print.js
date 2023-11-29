@@ -16,6 +16,7 @@ exports.handler = async (event, context) => {
     }
     event.queryStringParameters.screenshot = 1;
     event.queryStringParameters.cookieAccept = 1;
+    event.queryStringParameters.cachebust = Date.now();
     // const url = `http://leadershipethos.localhost/${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
     // const url = `https://staging:password@leadership-ethos.onyx-sites.io${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
     const url = `${process.env.BASE_URL}${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
