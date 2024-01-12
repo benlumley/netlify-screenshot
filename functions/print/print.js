@@ -83,7 +83,7 @@ exports.handler = async (event, context) => {
     console.log('check 6');
 
     await page.evaluate(function () {
-        document.getElementById('cookie-law-info-bar').remove();
+        document.getElementById('cookie-law-info-bar')?.remove();
     });
     console.log('check 7');
 
