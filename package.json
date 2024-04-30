@@ -7,7 +7,7 @@
   "author": "Steve Lacey <steve@steve.ly>",
   "license": "MIT",
   "dependencies": {
-    "@sparticuz/chromium": "^112.0.2",
+    "@sparticuz/chromium": "^123.0.0",
     "puppeteer-core": "19.8",
     "qs": "^6.10.1"
   }
