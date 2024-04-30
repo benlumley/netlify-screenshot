@@ -81,7 +81,7 @@ exports.handler = async (event, context) => {
     console.log(4);
     console.timeLog('timer');
     console.log(event.queryStringParameters.view === 'table' ? '#mifDataTable' : '#screenshotPdfFrame');
-    await page.waitForSelector(event.queryStringParameters.view === 'table' ? '#mifDataTable'  : '#screenshotPdfFrame');
+    await page.waitForSelector(event.queryStringParameters.view === 'table' ? '#mifDataTable'  : '#screenshotPdfFrame', { timeout: 15000 });
     console.log(5);
     console.timeLog('timer');
 
