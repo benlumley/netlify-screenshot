@@ -80,6 +80,7 @@ exports.handler = async (event, context) => {
     await page.goto(url )
     console.log(4);
     console.timeLog('timer');
+    console.log(event.queryStringParameters.view === 'table' ? '#mifDataTable' : '#screenshotPdfFrame');
     await page.waitForSelector(event.queryStringParameters.view === 'table' ? '#mifDataTable'  : '#screenshotPdfFrame');
     console.log(5);
     console.timeLog('timer');
