@@ -78,7 +78,8 @@ exports.handler = async (event, context) => {
     console.log('check 3');
     await page.setCacheEnabled(false);
     console.log('check 4');
-    // await page.goto(url, { waitUntil: "networkidle0" })
+    // await page.goto(url, { r: "networkidle0" })
+    await page.goto(url);
     console.log('check 5');
     await page.waitForSelector('.gauge--chart');
     console.log('check 6');
