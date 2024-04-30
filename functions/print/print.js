@@ -18,7 +18,7 @@ exports.handler = async (event, context) => {
     event.queryStringParameters.cookieAccept = 1;
     event.queryStringParameters.cachebust = Date.now();
     // const url = `http://leadershipethos.localhost/${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
-    // const url = `https://staging:password@leadership-ethos.onyx-sites.io${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
+    // const url = `https://leadershipethos.org${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
     const url = `${process.env.BASE_URL}${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
     console.log(url);
     let args = chromium.args;
@@ -47,7 +47,8 @@ exports.handler = async (event, context) => {
         '--disable-speech-api',
         '--disable-sync',
         '--hide-scrollbars',
-        '--ignore-gpu-blacklist',
+        // '--ignore-gpu-blacklist',
+        '--disable-gpu',
         '--metrics-recording-only',
         '--mute-audio',
         '--no-default-browser-check',
@@ -61,6 +62,7 @@ exports.handler = async (event, context) => {
     ]);
 
     console.log('check 1');
+
   const browser = await puppeteer.launch({
     args: args,
     defaultViewport: { width, height, deviceScaleFactor: 2 },
@@ -69,11 +71,10 @@ exports.handler = async (event, context) => {
     headless: true, // chromium.headless,
     userDataDir: '/tmp',
     emulateMediaType: 'screen',
-    devtools: false,
   })
 
     console.log('check 2');
-    const [page] = await browser.pages();
+    const page = await browser.newPage();
     console.log('check 3');
     await page.setCacheEnabled(false);
     console.log('check 4');
