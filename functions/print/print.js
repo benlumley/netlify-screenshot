@@ -77,7 +77,7 @@ exports.handler = async (event, context) => {
     await page.setViewport({ width, height, deviceScaleFactor: 2 })
     console.log(3);
     console.timeLog('timer');
-    await page.goto(url, { waitUntil: "networkidle2" })
+    await page.goto(url )
     console.log(4);
     console.timeLog('timer');
     await page.waitForSelector(event.queryStringParameters.view === 'table' ? '#mifDataTable'  : '#screenshotPdfFrame');
