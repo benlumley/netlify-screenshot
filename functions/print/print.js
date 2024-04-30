@@ -69,7 +69,7 @@ exports.handler = async (event, context) => {
     executablePath: await chromium.executablePath(),
     // executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     headless: true, // chromium.headless,
-    userDataDir: '/tmp',
+    // userDataDir: '/tmp',
     emulateMediaType: 'screen',
     dumpio: true,
   })
