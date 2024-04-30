@@ -65,7 +65,7 @@ exports.handler = async (event, context) => {
     executablePath: await chromium.executablePath(),
     headless: true, // chromium.headless,
     userDataDir: '/tmp',
-
+    dumpio: true,
   })
 
 
