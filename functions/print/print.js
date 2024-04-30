@@ -69,7 +69,7 @@ exports.handler = async (event, context) => {
     headless: true, // chromium.headless,
     userDataDir: '/tmp',
     emulateMediaType: 'screen',
-
+    devtools: false,
   })
 
     console.log('check 2');
