@@ -71,6 +71,7 @@ exports.handler = async (event, context) => {
     headless: true, // chromium.headless,
     userDataDir: '/tmp',
     emulateMediaType: 'screen',
+    dumpio: true,
   })
 
     console.log('check 2');
