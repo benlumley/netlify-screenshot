@@ -47,7 +47,7 @@ exports.handler = async (event, context) => {
         '--disable-sync',
         '--hide-scrollbars',
         '--ignore-gpu-blacklist',
-        // '--disable-gpu',
+        '--disable-gpu',
         '--metrics-recording-only',
         '--mute-audio',
         '--no-default-browser-check',
