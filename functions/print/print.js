@@ -63,8 +63,8 @@ exports.handler = async (event, context) => {
     const browser = await puppeteer.launch({
         args: args,
         defaultViewport: chromium.defaultViewport,
-        // executablePath: await chromium.executablePath(),
-        executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        executablePath: await chromium.executablePath(),
+        // executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         headless: true, // chromium.headless,
         userDataDir: '/tmp',
         dumpio: true,
@@ -74,7 +74,6 @@ exports.handler = async (event, context) => {
     console.log(1);
     console.time('timer');
     const page = await browser.newPage();
-
     console.log(2);
     console.timeLog('timer');
     await page.setViewport({ width, height, deviceScaleFactor: 2 })
