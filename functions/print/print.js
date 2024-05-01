@@ -17,7 +17,8 @@ exports.handler = async (event, context) => {
     event.queryStringParameters.takingss = 1;
     event.queryStringParameters.cookieAccept = 1;
     event.queryStringParameters.swnDismiss = 1;
-  const url = `${process.env.BASE_URL}${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
+    const url = `${process.env.BASE_URL}${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
+    // const url = `https://idp-test.mif.services${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
     console.log(url);
     let args = chromium.args;
     args.push(...[
@@ -59,29 +60,31 @@ exports.handler = async (event, context) => {
         '--use-mock-keychain',
     ]);
 
-  const browser = await puppeteer.launch({
-    args: args,
-    defaultViewport: chromium.defaultViewport,
-    executablePath: await chromium.executablePath(),
-    headless: true, // chromium.headless,
-    userDataDir: '/tmp',
-    dumpio: true,
-  })
+    const browser = await puppeteer.launch({
+        args: args,
+        defaultViewport: chromium.defaultViewport,
+        // executablePath: await chromium.executablePath(),
+        executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        headless: true, // chromium.headless,
+        userDataDir: '/tmp',
+        dumpio: true,
+    })
 
 
     console.log(1);
     console.time('timer');
     const page = await browser.newPage();
+
     console.log(2);
     console.timeLog('timer');
     await page.setViewport({ width, height, deviceScaleFactor: 2 })
     console.log(3);
     console.timeLog('timer');
-    await page.goto(url )
+    await page.goto(url, { timeout: 0} )
     console.log(4);
     console.timeLog('timer');
     console.log(event.queryStringParameters.view === 'table' ? '#mifDataTable' : '#screenshotPdfFrame');
-    await page.waitForSelector(event.queryStringParameters.view === 'table' ? '#mifDataTable'  : '#screenshotPdfFrame', { timeout: 15000 });
+    await page.waitForSelector(event.queryStringParameters.view === 'table' ? '#mifDataTable'  : '#screenshotPdfFrame', { timeout: 0 });
     console.log(5);
     console.timeLog('timer');
 
