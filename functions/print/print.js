@@ -2,7 +2,7 @@ const chromium = require("@sparticuz/chromium");
 const puppeteer = require("puppeteer-core");
 const qs = require("qs")
 
-const width = 1024
+const width = 1440
 const height = 1200
 
 const maxage = 60 * 60 * 24 * 7
@@ -76,7 +76,7 @@ exports.handler = async (event, context) => {
     const page = await browser.newPage();
     console.log(2);
     console.timeLog('timer');
-    await page.setViewport({ width, height, deviceScaleFactor: 2 })
+    await page.goto(url, { waitUntil: "networkidle0" })
     console.log(3);
     console.timeLog('timer');
     await page.goto(url, { timeout: 0} )
