@@ -48,6 +48,7 @@ exports.handler = async (event, context) => {
         '--disable-sync',
         '--hide-scrollbars',
         '--ignore-gpu-blacklist',
+        '--disable-gpu',
         '--metrics-recording-only',
         '--mute-audio',
         '--no-default-browser-check',
@@ -58,6 +59,7 @@ exports.handler = async (event, context) => {
         '--password-store=basic',
         '--use-gl=swiftshader',
         '--use-mock-keychain',
+        '--disable-local-storage',
     ]);
 
   const browser = await puppeteer.launch({
