@@ -92,6 +92,7 @@ exports.handler = async (event, context) => {
     format: "A4",
     printBackground: true,
     scale: 0.5,
+    landscape: true,
     margin: {
       top: 20,
       right: 40,
