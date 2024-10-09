@@ -2,8 +2,8 @@ const chromium = require("@sparticuz/chromium");
 const puppeteer = require("puppeteer-core");
 const qs = require("qs")
 
-const width = 1700
-const height = 1400
+const width = 1440
+const height = 1200
 
 const maxage = 60 * 60 * 24 * 7
 
@@ -91,8 +91,7 @@ exports.handler = async (event, context) => {
     const pdf = await page.pdf({
     format: "A4",
     printBackground: true,
-    scale: 0.5,
-    landscape: true,
+    scale: 0.8,
     margin: {
       top: 20,
       right: 40,
