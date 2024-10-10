@@ -92,8 +92,7 @@ exports.handler = async (event, context) => {
     const pdf = await page.pdf({
     format: "A4",
     printBackground: true,
-    scale: 0.6,
-    landscape: true,
+    scale: 0.5,
     margin: {
       top: 20,
       right: 40,
