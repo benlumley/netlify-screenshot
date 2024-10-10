@@ -58,7 +58,7 @@ exports.handler = async (event, context) => {
         '--password-store=basic',
         '--use-gl=swiftshader',
         '--use-mock-keychain',
-        '--disable-local-storage',
+        // '--disable-local-storage',
     ]);
 
     const browser = await puppeteer.launch({
@@ -111,7 +111,7 @@ exports.handler = async (event, context) => {
     statusCode: 200,
     headers: {
       "Content-Type": "application/pdf",
-        "Content-Disposition": "attachment; filename=2022-iiag.pdf",
+        "Content-Disposition": "attachment; filename=2024-iiag.pdf",
         "Cache-Control": `public, max-age=${maxage}`,
     },
     body: pdf.toString("base64"),
