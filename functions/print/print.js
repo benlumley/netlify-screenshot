@@ -66,7 +66,7 @@ exports.handler = async (event, context) => {
         defaultViewport: chromium.defaultViewport,
         executablePath: await chromium.executablePath(),
         // executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-        headless: true, // chromium.headless,
+        headless: chromium.headless,
         userDataDir: '/tmp',
     })
 
