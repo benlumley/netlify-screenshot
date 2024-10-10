@@ -76,7 +76,7 @@ exports.handler = async (event, context) => {
     const page = await browser.newPage();
     console.log(2);
     console.timeLog('timer');
-    await page.goto(url, { waitUntil: "networkidle0" })
+    await page.goto(url, { waitUntil: "networkidle2" })
     console.log(3);
     console.timeLog('timer');
     // await page.goto(url, { timeout: 0} )
