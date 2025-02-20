@@ -59,7 +59,6 @@ exports.handler = async (event, context) => {
         '--password-store=basic',
         '--use-gl=swiftshader',
         '--use-mock-keychain',
-        '--disable-local-storage',
     ]);
 
   const browser = await puppeteer.launch({
