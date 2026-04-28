@@ -119,44 +119,76 @@ const requestHeaders = () => {
     return headers
 }
 
+const logCaptureDiagnostics = async (page, selector, context) => {
+    try {
+        const diagnostics = await page.evaluate((captureSelector) => {
+            const captureElement = document.querySelector(captureSelector)
+            const bodyText = document.body?.innerText?.replace(/\s+/g, ' ').slice(0, 300)
+            const contentContainer = captureElement?.querySelector('.uk-container.uk-margin-top.uk-margin-bottom')
+            const loader = captureElement?.querySelector('img[src*="loader.gif"]')
+
+            return {
+                title: document.title,
+                url: location.href,
+                readyState: document.readyState,
+                hasCaptureElement: Boolean(captureElement),
+                hasContentContainer: Boolean(contentContainer),
+                contentChildren: contentContainer?.children?.length || 0,
+                hasLoader: Boolean(loader),
+                bodyText,
+            }
+        }, selector)
+
+        diagnostics.remainingTime = remainingTime(context)
+        console.log('capture diagnostics', JSON.stringify(diagnostics))
+    } catch (diagnosticError) {
+        console.error('Failed to collect capture diagnostics', diagnosticError)
+    }
+}
+
 const waitForCaptureReady = async (page, selector, context) => {
-    await page.waitForSelector(selector, { timeout: safeTimeout(context, selectorTimeout) })
-    await page.waitForFunction((captureSelector) => {
-        const captureElement = document.querySelector(captureSelector)
+    try {
+        await page.waitForSelector(selector, { timeout: safeTimeout(context, selectorTimeout) })
+        await page.waitForFunction((captureSelector) => {
+            const captureElement = document.querySelector(captureSelector)
 
-        if (!captureElement) {
-            return false
-        }
+            if (!captureElement) {
+                return false
+            }
 
-        const loader = captureElement.querySelector('img[src*="loader.gif"]')
+            const loader = captureElement.querySelector('img[src*="loader.gif"]')
 
-        if (loader) {
-            return false
-        }
+            if (loader) {
+                return false
+            }
 
-        const images = Array.from(captureElement.querySelectorAll('img'))
-        const imagesLoaded = images.every((image) => image.complete && image.naturalWidth > 0)
+            const images = Array.from(captureElement.querySelectorAll('img'))
+            const imagesLoaded = images.every((image) => image.complete && image.naturalWidth > 0)
 
-        if (!imagesLoaded) {
-            return false
-        }
+            if (!imagesLoaded) {
+                return false
+            }
 
-        const contentContainer = captureElement.querySelector('.uk-container.uk-margin-top.uk-margin-bottom')
-        const contentChildren = contentContainer
-            ? Array.from(contentContainer.children).slice(1)
-            : []
-        const hasRenderedContent = contentChildren.some((element) => {
-            const text = element.innerText?.trim() || ''
-            const chart = element.querySelector('canvas, svg, table')
+            const contentContainer = captureElement.querySelector('.uk-container.uk-margin-top.uk-margin-bottom')
+            const contentChildren = contentContainer
+                ? Array.from(contentContainer.children).slice(1)
+                : []
+            const hasRenderedContent = contentChildren.some((element) => {
+                const text = element.innerText?.trim() || ''
+                const chart = element.querySelector('canvas, svg, table')
 
-            return text.length > 20 || Boolean(chart)
-        })
+                return text.length > 20 || Boolean(chart)
+            })
 
-        return hasRenderedContent
-    }, { timeout: safeTimeout(context, selectorTimeout) }, selector)
+            return hasRenderedContent
+        }, { timeout: safeTimeout(context, selectorTimeout) }, selector)
 
-    await page.evaluateHandle('document.fonts.ready')
-    await page.waitForTimeout(500)
+        await page.evaluateHandle('document.fonts.ready')
+        await page.waitForTimeout(500)
+    } catch (error) {
+        await logCaptureDiagnostics(page, selector, context)
+        throw error
+    }
 }
 
 const errorResponse = (error) => {
@@ -199,6 +231,7 @@ exports.handler = async (event, context) => {
     const url = `${process.env.BASE_URL}${path}${qs.stringify(queryStringParameters, { addQueryPrefix: true })}`
     // const url = `https://idp-test.mif.services${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
     console.log(url);
+    console.log(`BUILD_BYPASS_KEY configured: ${Boolean(process.env.BUILD_BYPASS_KEY)}`)
 
     browser = await puppeteer.launch({
         args: launchArgs(),
