@@ -133,13 +133,6 @@ const waitForCaptureReady = async (page, selector, context) => {
             return false
         }
 
-        const images = Array.from(captureElement.querySelectorAll('img'))
-        const imagesLoaded = images.every((image) => image.complete && image.naturalWidth > 0)
-
-        if (!imagesLoaded) {
-            return false
-        }
-
         const contentContainer = captureElement.querySelector('.uk-container.uk-margin-top.uk-margin-bottom')
         const contentChildren = contentContainer
             ? Array.from(contentContainer.children).slice(1)
@@ -154,7 +147,6 @@ const waitForCaptureReady = async (page, selector, context) => {
         return hasRenderedContent
     }, { timeout: safeTimeout(context, selectorTimeout) }, selector)
 
-    await page.evaluateHandle('document.fonts.ready')
     await page.waitForTimeout(500)
 }
 
