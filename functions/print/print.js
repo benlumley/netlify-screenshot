@@ -64,6 +64,8 @@ const safeTimeout = (context, preferred, reserve = lambdaReserve) => (
     Math.max(1000, Math.min(preferred, remainingTime(context) - reserve))
 )
 
+const trimLogValue = (value, length = 500) => String(value || '').replace(/\s+/g, ' ').slice(0, length)
+
 const closeBrowser = async (browser) => {
     if (!browser) {
         return
@@ -119,6 +121,42 @@ const requestHeaders = () => {
     return headers
 }
 
+const attachPageDiagnostics = (page) => {
+    page.on('requestfailed', (request) => {
+        console.log('request failed', JSON.stringify({
+            url: trimLogValue(request.url()),
+            method: request.method(),
+            resourceType: request.resourceType(),
+            failure: request.failure()?.errorText,
+        }))
+    })
+
+    page.on('response', (response) => {
+        const status = response.status()
+
+        if (status >= 400) {
+            console.log('response error', JSON.stringify({
+                url: trimLogValue(response.url()),
+                status,
+                resourceType: response.request().resourceType(),
+            }))
+        }
+    })
+
+    page.on('pageerror', (error) => {
+        console.error('page error', trimLogValue(error.message, 1000))
+    })
+
+    page.on('console', (message) => {
+        if (['error', 'warning'].includes(message.type())) {
+            console.log('browser console', JSON.stringify({
+                type: message.type(),
+                text: trimLogValue(message.text(), 1000),
+            }))
+        }
+    })
+}
+
 const logCaptureDiagnostics = async (page, selector, context) => {
     try {
         const diagnostics = await page.evaluate((captureSelector) => {
@@ -126,6 +164,17 @@ const logCaptureDiagnostics = async (page, selector, context) => {
             const bodyText = document.body?.innerText?.replace(/\s+/g, ' ').slice(0, 300)
             const contentContainer = captureElement?.querySelector('.uk-container.uk-margin-top.uk-margin-bottom')
             const loader = captureElement?.querySelector('img[src*="loader.gif"]')
+            const trim = (value, length = 500) => String(value || '').replace(/\s+/g, ' ').slice(0, length)
+            const describeElement = (element) => ({
+                tag: element.tagName,
+                id: element.id || null,
+                className: trim(element.className, 300),
+                text: trim(element.innerText, 500),
+                hasCanvas: Boolean(element.querySelector('canvas')),
+                hasSvg: Boolean(element.querySelector('svg')),
+                hasTable: Boolean(element.querySelector('table')),
+                loaderCount: element.querySelectorAll('img[src*="loader.gif"]').length,
+            })
 
             return {
                 title: document.title,
@@ -135,6 +184,21 @@ const logCaptureDiagnostics = async (page, selector, context) => {
                 hasContentContainer: Boolean(contentContainer),
                 contentChildren: contentContainer?.children?.length || 0,
                 hasLoader: Boolean(loader),
+                loaderSources: Array.from(captureElement?.querySelectorAll('img[src*="loader.gif"]') || [])
+                    .map((image) => image.src)
+                    .slice(0, 10),
+                captureText: trim(captureElement?.innerText, 1000),
+                contentChildSummaries: Array.from(contentContainer?.children || [])
+                    .map(describeElement)
+                    .slice(0, 10),
+                imageStates: Array.from(captureElement?.querySelectorAll('img') || [])
+                    .map((image) => ({
+                        src: image.src,
+                        complete: image.complete,
+                        naturalWidth: image.naturalWidth,
+                        naturalHeight: image.naturalHeight,
+                    }))
+                    .slice(0, 20),
                 bodyText,
             }
         }, selector)
@@ -243,6 +307,7 @@ exports.handler = async (event, context) => {
 
     logTime('browser launched')
     const page = await browser.newPage();
+    attachPageDiagnostics(page)
     await page.setViewport({ width, height, deviceScaleFactor: 2 })
     await page.setUserAgent(userAgent)
     await page.setExtraHTTPHeaders(requestHeaders())
