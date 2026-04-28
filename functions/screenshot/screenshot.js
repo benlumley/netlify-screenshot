@@ -63,8 +63,6 @@ const safeTimeout = (context, preferred, reserve = lambdaReserve) => (
     Math.max(1000, Math.min(preferred, remainingTime(context) - reserve))
 )
 
-const trimLogValue = (value, length = 500) => String(value || '').replace(/\s+/g, ' ').slice(0, length)
-
 const closeBrowser = async (browser) => {
     if (!browser) {
         return
@@ -120,130 +118,36 @@ const requestHeaders = () => {
     return headers
 }
 
-const attachPageDiagnostics = (page) => {
-    page.on('requestfailed', (request) => {
-        console.log('request failed', JSON.stringify({
-            url: trimLogValue(request.url()),
-            method: request.method(),
-            resourceType: request.resourceType(),
-            failure: request.failure()?.errorText,
-        }))
-    })
-
-    page.on('response', (response) => {
-        const status = response.status()
-
-        if (status >= 400) {
-            console.log('response error', JSON.stringify({
-                url: trimLogValue(response.url()),
-                status,
-                resourceType: response.request().resourceType(),
-            }))
-        }
-    })
-
-    page.on('pageerror', (error) => {
-        console.error('page error', trimLogValue(error.message, 1000))
-    })
-
-    page.on('console', (message) => {
-        if (['error', 'warning'].includes(message.type())) {
-            console.log('browser console', JSON.stringify({
-                type: message.type(),
-                text: trimLogValue(message.text(), 1000),
-            }))
-        }
-    })
-}
-
-const logCaptureDiagnostics = async (page, selector, context) => {
-    try {
-        const diagnostics = await page.evaluate((captureSelector) => {
-            const captureElement = document.querySelector(captureSelector)
-            const bodyText = document.body?.innerText?.replace(/\s+/g, ' ').slice(0, 300)
-            const contentContainer = captureElement?.querySelector('.uk-container.uk-margin-top.uk-margin-bottom')
-            const loader = captureElement?.querySelector('img[src*="loader.gif"]')
-            const trim = (value, length = 500) => String(value || '').replace(/\s+/g, ' ').slice(0, length)
-            const describeElement = (element) => ({
-                tag: element.tagName,
-                id: element.id || null,
-                className: trim(element.className, 300),
-                text: trim(element.innerText, 500),
-                hasCanvas: Boolean(element.querySelector('canvas')),
-                hasSvg: Boolean(element.querySelector('svg')),
-                hasTable: Boolean(element.querySelector('table')),
-                loaderCount: element.querySelectorAll('img[src*="loader.gif"]').length,
-            })
-
-            return {
-                title: document.title,
-                url: location.href,
-                readyState: document.readyState,
-                hasCaptureElement: Boolean(captureElement),
-                hasContentContainer: Boolean(contentContainer),
-                contentChildren: contentContainer?.children?.length || 0,
-                hasLoader: Boolean(loader),
-                loaderSources: Array.from(captureElement?.querySelectorAll('img[src*="loader.gif"]') || [])
-                    .map((image) => image.src)
-                    .slice(0, 10),
-                captureText: trim(captureElement?.innerText, 1000),
-                contentChildSummaries: Array.from(contentContainer?.children || [])
-                    .map(describeElement)
-                    .slice(0, 10),
-                imageStates: Array.from(captureElement?.querySelectorAll('img') || [])
-                    .map((image) => ({
-                        src: image.src,
-                        complete: image.complete,
-                        naturalWidth: image.naturalWidth,
-                        naturalHeight: image.naturalHeight,
-                    }))
-                    .slice(0, 20),
-                bodyText,
-            }
-        }, selector)
-
-        diagnostics.remainingTime = remainingTime(context)
-        console.log('capture diagnostics', JSON.stringify(diagnostics))
-    } catch (diagnosticError) {
-        console.error('Failed to collect capture diagnostics', diagnosticError)
-    }
-}
-
 const waitForCaptureReady = async (page, selector, context) => {
-    try {
-        await page.waitForSelector(selector, { timeout: safeTimeout(context, selectorTimeout) })
-        await page.waitForFunction((captureSelector) => {
-            const captureElement = document.querySelector(captureSelector)
+    await page.waitForSelector(selector, { timeout: safeTimeout(context, selectorTimeout) })
+    await page.waitForFunction((captureSelector) => {
+        const captureElement = document.querySelector(captureSelector)
 
-            if (!captureElement) {
-                return false
-            }
+        if (!captureElement) {
+            return false
+        }
 
-            const loader = captureElement.querySelector('img[src*="loader.gif"]')
+        const loader = captureElement.querySelector('img[src*="loader.gif"]')
 
-            if (loader) {
-                return false
-            }
+        if (loader) {
+            return false
+        }
 
-            const contentContainer = captureElement.querySelector('.uk-container.uk-margin-top.uk-margin-bottom')
-            const contentChildren = contentContainer
-                ? Array.from(contentContainer.children).slice(1)
-                : []
-            const hasRenderedContent = contentChildren.some((element) => {
-                const text = element.innerText?.trim() || ''
-                const chart = element.querySelector('canvas, svg, table')
+        const contentContainer = captureElement.querySelector('.uk-container.uk-margin-top.uk-margin-bottom')
+        const contentChildren = contentContainer
+            ? Array.from(contentContainer.children).slice(1)
+            : []
+        const hasRenderedContent = contentChildren.some((element) => {
+            const text = element.innerText?.trim() || ''
+            const chart = element.querySelector('canvas, svg, table')
 
-                return text.length > 20 || Boolean(chart)
-            })
+            return text.length > 20 || Boolean(chart)
+        })
 
-            return hasRenderedContent
-        }, { timeout: safeTimeout(context, selectorTimeout) }, selector)
+        return hasRenderedContent
+    }, { timeout: safeTimeout(context, selectorTimeout) }, selector)
 
-        await page.waitForTimeout(500)
-    } catch (error) {
-        await logCaptureDiagnostics(page, selector, context)
-        throw error
-    }
+    await page.waitForTimeout(500)
 }
 
 const errorResponse = (error) => {
@@ -285,7 +189,6 @@ exports.handler = async (event, context) => {
   }
   const selector = queryStringParameters.view === 'table' ? '#mifDataTable' : '#screenshotPdfFrame'
   const url = `${process.env.BASE_URL}${path}${qs.stringify(queryStringParameters, { addQueryPrefix: true })}`
-  console.log(`BUILD_BYPASS_KEY configured: ${Boolean(process.env.BUILD_BYPASS_KEY)}`)
 
   browser = await puppeteer.launch({
     args: launchArgs(),
@@ -296,7 +199,6 @@ exports.handler = async (event, context) => {
 
   logTime('browser launched')
     const page = await browser.newPage();
-    attachPageDiagnostics(page)
     await page.setViewport({ width, height, deviceScaleFactor: 1 })
     await page.setUserAgent(userAgent)
     await page.setExtraHTTPHeaders(requestHeaders())
