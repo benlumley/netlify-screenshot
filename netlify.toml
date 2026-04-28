@@ -3,6 +3,7 @@
 
 [template.environment]
   BASE_URL = "Base URL e.g. https://example.com"
+  BUILD_BYPASS_KEY = "Build bypass key sent as X-IDP-Build-Key"
 
 [[redirects]]
   from = "/print/*"
