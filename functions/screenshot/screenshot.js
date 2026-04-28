@@ -6,7 +6,7 @@ const width = 1440
 const height = 1200
 const maxage = 60 * 60 * 24 * 7
 const navigationTimeout = 18000
-const selectorTimeout = 6000
+const selectorTimeout = 10000
 const closeTimeout = 1000
 const lambdaReserve = 5000
 
@@ -207,7 +207,7 @@ exports.handler = async (event, context) => {
 
   logTime('browser launched')
     const page = await browser.newPage();
-    await page.setViewport({ width, height, deviceScaleFactor: 2 })
+    await page.setViewport({ width, height, deviceScaleFactor: 1 })
     await page.setUserAgent(userAgent)
     await page.setExtraHTTPHeaders(requestHeaders())
     await page.evaluateOnNewDocument(() => {

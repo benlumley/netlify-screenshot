@@ -7,7 +7,7 @@ const height = 1200
 
 const maxage = 60 * 60 * 24 * 7
 const navigationTimeout = 18000
-const selectorTimeout = 6000
+const selectorTimeout = 10000
 const closeTimeout = 1000
 const lambdaReserve = 5000
 
