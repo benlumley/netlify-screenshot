@@ -5,8 +5,8 @@ const qs = require("qs")
 const width = 1440
 const height = 1200
 const maxage = 60 * 60 * 24 * 7
-const navigationTimeout = 10000
-const selectorTimeout = 16000
+const navigationTimeout = 18000
+const selectorTimeout = 6000
 const closeTimeout = 1000
 const lambdaReserve = 5000
 
@@ -118,6 +118,39 @@ const requestHeaders = () => {
     return headers
 }
 
+const waitForCaptureReady = async (page, selector, context) => {
+    await page.waitForSelector(selector, { timeout: safeTimeout(context, selectorTimeout) })
+    await page.waitForFunction((captureSelector) => {
+        const captureElement = document.querySelector(captureSelector)
+
+        if (!captureElement) {
+            return false
+        }
+
+        const loader = captureElement.querySelector('img[src*="loader.gif"]')
+
+        if (loader) {
+            return false
+        }
+
+        const images = Array.from(captureElement.querySelectorAll('img'))
+        const imagesLoaded = images.every((image) => image.complete && image.naturalWidth > 0)
+
+        if (!imagesLoaded) {
+            return false
+        }
+
+        const text = captureElement.innerText.trim()
+        const hasRenderedContent = text.length > 20
+            || captureElement.querySelector('canvas, svg, table')
+
+        return Boolean(hasRenderedContent)
+    }, { timeout: safeTimeout(context, selectorTimeout) }, selector)
+
+    await page.evaluateHandle('document.fonts.ready')
+    await page.waitForTimeout(500)
+}
+
 const errorResponse = (error) => {
     const isTimeout = error?.name === 'TimeoutError'
 
@@ -176,11 +209,10 @@ exports.handler = async (event, context) => {
     page.setDefaultNavigationTimeout(safeTimeout(context, navigationTimeout, 8000))
     page.setDefaultTimeout(safeTimeout(context, selectorTimeout))
     logTime('page ready')
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: safeTimeout(context, navigationTimeout, 8000) })
-    logTime('dom loaded')
-    await page.waitForSelector(selector, { timeout: safeTimeout(context, selectorTimeout) });
-    await page.waitForTimeout(500)
-    logTime('selector ready')
+    await page.goto(url, { waitUntil: "networkidle2", timeout: safeTimeout(context, navigationTimeout, 5000) })
+    logTime('network idle')
+    await waitForCaptureReady(page, selector, context)
+    logTime('capture ready')
   const frame = await page.$(selector);
   const screenshot = await frame.screenshot({
     type:'png',
