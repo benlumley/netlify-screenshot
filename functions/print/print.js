@@ -141,11 +141,18 @@ const waitForCaptureReady = async (page, selector, context) => {
             return false
         }
 
-        const text = captureElement.innerText.trim()
-        const hasRenderedContent = text.length > 20
-            || captureElement.querySelector('canvas, svg, table')
+        const contentContainer = captureElement.querySelector('.uk-container.uk-margin-top.uk-margin-bottom')
+        const contentChildren = contentContainer
+            ? Array.from(contentContainer.children).slice(1)
+            : []
+        const hasRenderedContent = contentChildren.some((element) => {
+            const text = element.innerText?.trim() || ''
+            const chart = element.querySelector('canvas, svg, table')
 
-        return Boolean(hasRenderedContent)
+            return text.length > 20 || Boolean(chart)
+        })
+
+        return hasRenderedContent
     }, { timeout: safeTimeout(context, selectorTimeout) }, selector)
 
     await page.evaluateHandle('document.fonts.ready')
@@ -212,8 +219,8 @@ exports.handler = async (event, context) => {
     page.setDefaultNavigationTimeout(safeTimeout(context, navigationTimeout, 8000))
     page.setDefaultTimeout(safeTimeout(context, selectorTimeout))
     logTime('page ready')
-    await page.goto(url, { waitUntil: "networkidle2", timeout: safeTimeout(context, navigationTimeout, 5000) })
-    logTime('network idle')
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: safeTimeout(context, navigationTimeout, 8000) })
+    logTime('dom loaded')
     console.log(selector);
     await waitForCaptureReady(page, selector, context)
     logTime('capture ready')
