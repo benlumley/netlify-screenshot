@@ -1,6 +1,11 @@
 const chromium = require("@sparticuz/chromium");
 const puppeteer = require("puppeteer-core");
 const qs = require("qs")
+const { isAllowedCoverUrl, deriveFilename, mergeCover } = require("./pdfCover")
+
+// Merged PDFs above this base64 size risk the synchronous Netlify response cap
+// (~6MB); fall back to the coverless PDF rather than returning a 502.
+const maxCoveredBase64 = 5.5 * 1024 * 1024
 
 const width = 1440
 const height = 1200
@@ -189,12 +194,15 @@ exports.handler = async (event, context) => {
             statusCode: 404
         }
     }
+    // `cover` is service-only (the PDF to prepend); never forward it to the app.
+    const { cover: coverUrl, ...forwardedParams } = event.queryStringParameters || {}
     const queryStringParameters = {
-        ...(event.queryStringParameters || {}),
+        ...forwardedParams,
         takingss: 1,
         cookieAccept: 1,
         swnDismiss: 1,
     }
+    const filename = deriveFilename(path)
     const selector = queryStringParameters.view === 'table' ? '#mifDataTable' : '#screenshotPdfFrame'
     const url = `${process.env.BASE_URL}${path}${qs.stringify(queryStringParameters, { addQueryPrefix: true })}`
     // const url = `https://idp-test.mif.services${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
@@ -240,14 +248,43 @@ exports.handler = async (event, context) => {
 
   logTime('pdf created')
 
+  // Prepend the cover if one was requested. Any failure here degrades to the
+  // coverless PDF (Principle 4) — it must never turn into a hard error, so the
+  // fetch/merge and pdf-lib require are isolated in their own try/catch.
+  let responseBase64 = pdf.toString("base64")
+
+  if (coverUrl) {
+    try {
+      if (!isAllowedCoverUrl(coverUrl)) {
+        console.warn('cover rejected (not https/allowlisted):', coverUrl)
+      } else {
+        const coverResponse = await fetch(coverUrl)
+        if (!coverResponse.ok) {
+          throw new Error(`cover fetch failed: ${coverResponse.status}`)
+        }
+        const coverBuffer = Buffer.from(await coverResponse.arrayBuffer())
+        const mergedBase64 = (await mergeCover(pdf, coverBuffer)).toString("base64")
+
+        if (mergedBase64.length > maxCoveredBase64) {
+          console.warn('merged pdf exceeds response cap; returning coverless')
+        } else {
+          responseBase64 = mergedBase64
+          logTime('cover merged')
+        }
+      }
+    } catch (error) {
+      console.warn('cover merge failed; returning coverless:', error?.message || error)
+    }
+  }
+
   return {
     statusCode: 200,
     headers: {
       "Content-Type": "application/pdf",
-        "Content-Disposition": "attachment; filename=2024-iiag.pdf",
+        "Content-Disposition": `attachment; filename=${filename}`,
         "Cache-Control": `public, max-age=${maxage}`,
     },
-    body: pdf.toString("base64"),
+    body: responseBase64,
     isBase64Encoded: true,
   }
     } catch (error) {

@@ -4,6 +4,7 @@
 [template.environment]
   BASE_URL = "Base URL e.g. https://example.com"
   BUILD_BYPASS_KEY = "Build bypass key sent as X-IDP-Build-Key"
+  COVER_ALLOWED_HOSTS = "Extra comma-separated hosts allowed for the ?cover= PDF fetch (assets.iiag.online is always allowed). For local/preview cover testing only."
 
 [[redirects]]
   from = "/print/*"
