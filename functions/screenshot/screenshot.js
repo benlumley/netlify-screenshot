@@ -133,18 +133,13 @@ const waitForCaptureReady = async (page, selector, context) => {
             return false
         }
 
-        const contentContainer = captureElement.querySelector('.uk-container.uk-margin-top.uk-margin-bottom')
-        const contentChildren = contentContainer
-            ? Array.from(contentContainer.children).slice(1)
-            : []
-        const hasRenderedContent = contentChildren.some((element) => {
-            const text = element.innerText?.trim() || ''
-            const chart = element.querySelector('canvas, svg, table')
+        // A rendered chart/table (or substantial text) means the content is ready.
+        // Searched across the whole frame so it works for the Data-page
+        // ScreenshotContent and the in-place detail-page <main> alike.
+        const chart = captureElement.querySelector('canvas, svg, table')
+        const text = captureElement.innerText?.trim() || ''
 
-            return text.length > 20 || Boolean(chart)
-        })
-
-        return hasRenderedContent
+        return Boolean(chart) || text.length > 40
     }, { timeout: safeTimeout(context, selectorTimeout) }, selector)
 
     await page.waitForTimeout(500)
@@ -185,7 +180,7 @@ exports.handler = async (event, context) => {
     ...(event.queryStringParameters || {}),
     takingss: 1,
     cookieAccept: 1,
-    swnDismiss: 1,
+    swn_dismiss: 1,
   }
   const selector = queryStringParameters.view === 'table' ? '#mifDataTable' : '#screenshotPdfFrame'
   const url = `${process.env.BASE_URL}${path}${qs.stringify(queryStringParameters, { addQueryPrefix: true })}`
