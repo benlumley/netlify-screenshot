@@ -1,6 +1,7 @@
 const chromium = require("@sparticuz/chromium");
 const puppeteer = require("puppeteer-core");
 const qs = require("qs")
+const { captureReadyCheck } = require("../print/captureReady")
 
 const width = 1440
 const height = 1200
@@ -120,40 +121,7 @@ const requestHeaders = () => {
 
 const waitForCaptureReady = async (page, selector, context) => {
     await page.waitForSelector(selector, { timeout: safeTimeout(context, selectorTimeout) })
-    await page.waitForFunction((captureSelector) => {
-        const captureElement = document.querySelector(captureSelector)
-
-        if (!captureElement) {
-            return false
-        }
-
-        const loader = captureElement.querySelector('img[src*="loader.gif"]')
-
-        if (loader) {
-            return false
-        }
-
-        // Data-page frames wrap content in this specific container — preserve the
-        // original readiness logic exactly for them.
-        const contentContainer = captureElement.querySelector('.uk-container.uk-margin-top.uk-margin-bottom')
-        if (contentContainer) {
-            const contentChildren = Array.from(contentContainer.children).slice(1)
-
-            return contentChildren.some((element) => {
-                const text = element.innerText?.trim() || ''
-                const chart = element.querySelector('canvas, svg, table')
-
-                return text.length > 20 || Boolean(chart)
-            })
-        }
-
-        // In-place detail-page <main> frames have no such container — look for a
-        // rendered chart/table (or substantial text) anywhere in the frame.
-        const chart = captureElement.querySelector('canvas, svg, table')
-        const text = captureElement.innerText?.trim() || ''
-
-        return Boolean(chart) || text.length > 40
-    }, { timeout: safeTimeout(context, selectorTimeout) }, selector)
+    await page.waitForFunction(captureReadyCheck, { timeout: safeTimeout(context, selectorTimeout) }, selector, false)
 
     await page.waitForTimeout(500)
 }
