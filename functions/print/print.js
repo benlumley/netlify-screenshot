@@ -146,9 +146,22 @@ const waitForCaptureReady = async (page, selector, context) => {
             return false
         }
 
-        // A rendered chart/table (or substantial text) means the content is ready.
-        // Searched across the whole frame so it works for the Data-page
-        // ScreenshotContent and the in-place detail-page <main> alike.
+        // Data-page frames wrap content in this specific container — preserve the
+        // original readiness logic exactly for them.
+        const contentContainer = captureElement.querySelector('.uk-container.uk-margin-top.uk-margin-bottom')
+        if (contentContainer) {
+            const contentChildren = Array.from(contentContainer.children).slice(1)
+
+            return contentChildren.some((element) => {
+                const text = element.innerText?.trim() || ''
+                const chart = element.querySelector('canvas, svg, table')
+
+                return text.length > 20 || Boolean(chart)
+            })
+        }
+
+        // In-place detail-page <main> frames have no such container — look for a
+        // rendered chart/table (or substantial text) anywhere in the frame.
         const chart = captureElement.querySelector('canvas, svg, table')
         const text = captureElement.innerText?.trim() || ''
 
