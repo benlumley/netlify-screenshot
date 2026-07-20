@@ -8,6 +8,10 @@ const { captureReadyCheck } = require("./captureReady")
 // (~6MB); fall back to the coverless PDF rather than returning a 502.
 const maxCoveredBase64 = 5.5 * 1024 * 1024
 
+// Abort the cover fetch if it stalls, so a slow asset host degrades to the
+// coverless PDF instead of hanging the whole function into a Lambda timeout.
+const coverFetchTimeout = 8000
+
 const width = 1440
 const height = 1200
 
@@ -227,18 +231,27 @@ exports.handler = async (event, context) => {
       if (!isAllowedCoverUrl(coverUrl)) {
         console.warn('cover rejected (not https/allowlisted):', coverUrl)
       } else {
-        const coverResponse = await fetch(coverUrl)
-        if (!coverResponse.ok) {
-          throw new Error(`cover fetch failed: ${coverResponse.status}`)
-        }
-        const coverBuffer = Buffer.from(await coverResponse.arrayBuffer())
-        const mergedBase64 = (await mergeCover(pdf, coverBuffer)).toString("base64")
+        // `redirect: 'error'` keeps the SSRF allowlist honest — a 3xx from an
+        // allowlisted host can't bounce the fetch to an unvalidated URL. The
+        // abort timeout bounds a slow download so it degrades to coverless.
+        const controller = new AbortController()
+        const coverTimeout = setTimeout(() => controller.abort(), safeTimeout(context, coverFetchTimeout))
+        try {
+          const coverResponse = await fetch(coverUrl, { redirect: 'error', signal: controller.signal })
+          if (!coverResponse.ok) {
+            throw new Error(`cover fetch failed: ${coverResponse.status}`)
+          }
+          const coverBuffer = Buffer.from(await coverResponse.arrayBuffer())
+          const mergedBase64 = (await mergeCover(pdf, coverBuffer)).toString("base64")
 
-        if (mergedBase64.length > maxCoveredBase64) {
-          console.warn('merged pdf exceeds response cap; returning coverless')
-        } else {
-          responseBase64 = mergedBase64
-          logTime('cover merged')
+          if (mergedBase64.length > maxCoveredBase64) {
+            console.warn('merged pdf exceeds response cap; returning coverless')
+          } else {
+            responseBase64 = mergedBase64
+            logTime('cover merged')
+          }
+        } finally {
+          clearTimeout(coverTimeout)
         }
       }
     } catch (error) {
