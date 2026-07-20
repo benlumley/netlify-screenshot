@@ -69,3 +69,9 @@ test('detail fallback: not ready with no chart and little text', () => {
     setDom('<div id="frame"><div>hi</div></div>')
     assert.equal(captureReadyCheck('#frame', true), false)
 })
+
+test('detail fallback: chrome/hero text alone does not mark it ready (chart must render)', () => {
+    const doc = setDom('<div id="frame"><div id="hero"></div></div>')
+    define(doc.getElementById('hero'), 'innerText', 'x'.repeat(200))
+    assert.equal(captureReadyCheck('#frame', true), false)
+})

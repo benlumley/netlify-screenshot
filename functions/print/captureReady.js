@@ -41,12 +41,11 @@ function captureReadyCheck(captureSelector, requireImages) {
         })
     }
 
-    // In-place detail-page <main> frames have no such container — look for a
-    // rendered chart/table (or substantial text) anywhere in the frame.
-    const chart = captureElement.querySelector('canvas, svg, table')
-    const text = captureElement.innerText?.trim() || ''
-
-    return Boolean(chart) || text.length > 40
+    // In-place detail-page <main> frames have no such container. Wait for a
+    // rendered chart/table — detail pages always contain one — rather than
+    // settling on the surrounding chrome/hero text, which is present in the DOM
+    // before the charts have drawn (which would capture blank charts).
+    return Boolean(captureElement.querySelector('canvas, svg, table'))
 }
 
 module.exports = { captureReadyCheck }
