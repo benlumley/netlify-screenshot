@@ -1,6 +1,16 @@
 const chromium = require("@sparticuz/chromium");
 const puppeteer = require("puppeteer-core");
 const qs = require("qs")
+const { isAllowedCoverUrl, deriveFilename, mergeCover } = require("./pdfCover")
+const { captureReadyCheck } = require("./captureReady")
+
+// Merged PDFs above this base64 size risk the synchronous Netlify response cap
+// (~6MB); fall back to the coverless PDF rather than returning a 502.
+const maxCoveredBase64 = 5.5 * 1024 * 1024
+
+// Abort the cover fetch if it stalls, so a slow asset host degrades to the
+// coverless PDF instead of hanging the whole function into a Lambda timeout.
+const coverFetchTimeout = 8000
 
 const width = 1440
 const height = 1200
@@ -121,39 +131,7 @@ const requestHeaders = () => {
 
 const waitForCaptureReady = async (page, selector, context) => {
     await page.waitForSelector(selector, { timeout: safeTimeout(context, selectorTimeout) })
-    await page.waitForFunction((captureSelector) => {
-        const captureElement = document.querySelector(captureSelector)
-
-        if (!captureElement) {
-            return false
-        }
-
-        const loader = captureElement.querySelector('img[src*="loader.gif"]')
-
-        if (loader) {
-            return false
-        }
-
-        const images = Array.from(captureElement.querySelectorAll('img'))
-        const imagesLoaded = images.every((image) => image.complete && image.naturalWidth > 0)
-
-        if (!imagesLoaded) {
-            return false
-        }
-
-        const contentContainer = captureElement.querySelector('.uk-container.uk-margin-top.uk-margin-bottom')
-        const contentChildren = contentContainer
-            ? Array.from(contentContainer.children).slice(1)
-            : []
-        const hasRenderedContent = contentChildren.some((element) => {
-            const text = element.innerText?.trim() || ''
-            const chart = element.querySelector('canvas, svg, table')
-
-            return text.length > 20 || Boolean(chart)
-        })
-
-        return hasRenderedContent
-    }, { timeout: safeTimeout(context, selectorTimeout) }, selector)
+    await page.waitForFunction(captureReadyCheck, { timeout: safeTimeout(context, selectorTimeout) }, selector, true)
 
     await page.evaluateHandle('document.fonts.ready')
     await page.waitForTimeout(500)
@@ -189,12 +167,15 @@ exports.handler = async (event, context) => {
             statusCode: 404
         }
     }
+    // `cover` is service-only (the PDF to prepend); never forward it to the app.
+    const { cover: coverUrl, ...forwardedParams } = event.queryStringParameters || {}
     const queryStringParameters = {
-        ...(event.queryStringParameters || {}),
+        ...forwardedParams,
         takingss: 1,
         cookieAccept: 1,
-        swnDismiss: 1,
+        swn_dismiss: 1,
     }
+    const filename = deriveFilename(path)
     const selector = queryStringParameters.view === 'table' ? '#mifDataTable' : '#screenshotPdfFrame'
     const url = `${process.env.BASE_URL}${path}${qs.stringify(queryStringParameters, { addQueryPrefix: true })}`
     // const url = `https://idp-test.mif.services${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
@@ -240,14 +221,52 @@ exports.handler = async (event, context) => {
 
   logTime('pdf created')
 
+  // Prepend the cover if one was requested. Any failure here degrades to the
+  // coverless PDF (Principle 4) — it must never turn into a hard error, so the
+  // fetch/merge and pdf-lib require are isolated in their own try/catch.
+  let responseBase64 = pdf.toString("base64")
+
+  if (coverUrl) {
+    try {
+      if (!isAllowedCoverUrl(coverUrl)) {
+        console.warn('cover rejected (not https/allowlisted):', coverUrl)
+      } else {
+        // `redirect: 'error'` keeps the SSRF allowlist honest — a 3xx from an
+        // allowlisted host can't bounce the fetch to an unvalidated URL. The
+        // abort timeout bounds a slow download so it degrades to coverless.
+        const controller = new AbortController()
+        const coverTimeout = setTimeout(() => controller.abort(), safeTimeout(context, coverFetchTimeout))
+        try {
+          const coverResponse = await fetch(coverUrl, { redirect: 'error', signal: controller.signal })
+          if (!coverResponse.ok) {
+            throw new Error(`cover fetch failed: ${coverResponse.status}`)
+          }
+          const coverBuffer = Buffer.from(await coverResponse.arrayBuffer())
+          const mergedBase64 = (await mergeCover(pdf, coverBuffer)).toString("base64")
+
+          if (mergedBase64.length > maxCoveredBase64) {
+            console.warn('merged pdf exceeds response cap; returning coverless')
+          } else {
+            responseBase64 = mergedBase64
+            logTime('cover merged')
+          }
+        } finally {
+          clearTimeout(coverTimeout)
+        }
+      }
+    } catch (error) {
+      console.warn('cover merge failed; returning coverless:', error?.message || error)
+    }
+  }
+
   return {
     statusCode: 200,
     headers: {
       "Content-Type": "application/pdf",
-        "Content-Disposition": "attachment; filename=2024-iiag.pdf",
+        "Content-Disposition": `attachment; filename=${filename}`,
         "Cache-Control": `public, max-age=${maxage}`,
     },
-    body: pdf.toString("base64"),
+    body: responseBase64,
     isBase64Encoded: true,
   }
     } catch (error) {

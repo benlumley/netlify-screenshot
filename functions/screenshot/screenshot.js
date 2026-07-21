@@ -1,6 +1,7 @@
 const chromium = require("@sparticuz/chromium");
 const puppeteer = require("puppeteer-core");
 const qs = require("qs")
+const { captureReadyCheck } = require("../print/captureReady")
 
 const width = 1440
 const height = 1200
@@ -120,32 +121,7 @@ const requestHeaders = () => {
 
 const waitForCaptureReady = async (page, selector, context) => {
     await page.waitForSelector(selector, { timeout: safeTimeout(context, selectorTimeout) })
-    await page.waitForFunction((captureSelector) => {
-        const captureElement = document.querySelector(captureSelector)
-
-        if (!captureElement) {
-            return false
-        }
-
-        const loader = captureElement.querySelector('img[src*="loader.gif"]')
-
-        if (loader) {
-            return false
-        }
-
-        const contentContainer = captureElement.querySelector('.uk-container.uk-margin-top.uk-margin-bottom')
-        const contentChildren = contentContainer
-            ? Array.from(contentContainer.children).slice(1)
-            : []
-        const hasRenderedContent = contentChildren.some((element) => {
-            const text = element.innerText?.trim() || ''
-            const chart = element.querySelector('canvas, svg, table')
-
-            return text.length > 20 || Boolean(chart)
-        })
-
-        return hasRenderedContent
-    }, { timeout: safeTimeout(context, selectorTimeout) }, selector)
+    await page.waitForFunction(captureReadyCheck, { timeout: safeTimeout(context, selectorTimeout) }, selector, false)
 
     await page.waitForTimeout(500)
 }
@@ -185,7 +161,7 @@ exports.handler = async (event, context) => {
     ...(event.queryStringParameters || {}),
     takingss: 1,
     cookieAccept: 1,
-    swnDismiss: 1,
+    swn_dismiss: 1,
   }
   const selector = queryStringParameters.view === 'table' ? '#mifDataTable' : '#screenshotPdfFrame'
   const url = `${process.env.BASE_URL}${path}${qs.stringify(queryStringParameters, { addQueryPrefix: true })}`
