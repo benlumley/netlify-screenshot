@@ -147,10 +147,10 @@ const waitForCaptureReady = async (page, selector, context) => {
                 )) : null,
                 chartPresent: el ? Boolean(el.querySelector('canvas, svg, table')) : null,
                 totalImages: images.length,
-                failedResources: performance.getEntriesByType('resource')
-                    .filter((entry) => entry.responseStatus === 0 || entry.responseStatus >= 400)
-                    .map((entry) => `${entry.responseStatus} ${entry.name.slice(0, 140)}`)
-                    .slice(0, 10),
+                apiRequests: performance.getEntriesByType('resource')
+                    .filter((entry) => entry.name.includes('api-'))
+                    .map((entry) => `${entry.responseStatus} ${Math.round(entry.duration)}ms ${entry.name.slice(0, 120)}`)
+                    .slice(0, 12),
             }
         }, selector).catch(() => null)
         console.log('capture-ready diag:', JSON.stringify(diag))
