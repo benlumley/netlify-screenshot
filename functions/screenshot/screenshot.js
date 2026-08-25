@@ -2,6 +2,7 @@ const chromium = require("@sparticuz/chromium");
 const puppeteer = require("puppeteer-core");
 const qs = require("qs")
 const { captureReadyCheck } = require("../print/captureReady")
+const { httpCredentials } = require("../print/httpAuth")
 
 const width = 1440
 const height = 1200
@@ -119,12 +120,6 @@ const requestHeaders = () => {
     return headers
 }
 
-const httpCredentials = () => (
-    process.env.HTTP_AUTH_USER && process.env.HTTP_AUTH_PASS
-        ? { username: process.env.HTTP_AUTH_USER, password: process.env.HTTP_AUTH_PASS }
-        : null
-)
-
 const waitForCaptureReady = async (page, selector, context) => {
     await page.waitForSelector(selector, { timeout: safeTimeout(context, selectorTimeout) })
     await page.waitForFunction(captureReadyCheck, { timeout: safeTimeout(context, selectorTimeout) }, selector, false)
@@ -194,7 +189,10 @@ exports.handler = async (event, context) => {
     page.setDefaultNavigationTimeout(safeTimeout(context, navigationTimeout, 8000))
     page.setDefaultTimeout(safeTimeout(context, selectorTimeout))
     logTime('page ready')
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: safeTimeout(context, navigationTimeout, 8000) })
+    const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: safeTimeout(context, navigationTimeout, 8000) })
+    if (response && (response.status() === 401 || response.status() === 407)) {
+        throw new Error(`Target returned ${response.status()} — check HTTP_AUTH_USER/HTTP_AUTH_PASS`)
+    }
     logTime('dom loaded')
     await waitForCaptureReady(page, selector, context)
     logTime('capture ready')

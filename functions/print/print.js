@@ -3,6 +3,7 @@ const puppeteer = require("puppeteer-core");
 const qs = require("qs")
 const { isAllowedCoverUrl, deriveFilename, mergeCover } = require("./pdfCover")
 const { captureReadyCheck } = require("./captureReady")
+const { httpCredentials } = require("./httpAuth")
 
 // Merged PDFs above this base64 size risk the synchronous Netlify response cap
 // (~6MB); fall back to the coverless PDF rather than returning a 502.
@@ -129,12 +130,6 @@ const requestHeaders = () => {
     return headers
 }
 
-const httpCredentials = () => (
-    process.env.HTTP_AUTH_USER && process.env.HTTP_AUTH_PASS
-        ? { username: process.env.HTTP_AUTH_USER, password: process.env.HTTP_AUTH_PASS }
-        : null
-)
-
 const waitForCaptureReady = async (page, selector, context) => {
     await page.waitForSelector(selector, { timeout: safeTimeout(context, selectorTimeout) })
     await page.waitForFunction(captureReadyCheck, { timeout: safeTimeout(context, selectorTimeout) }, selector, true)
@@ -209,7 +204,10 @@ exports.handler = async (event, context) => {
     page.setDefaultNavigationTimeout(safeTimeout(context, navigationTimeout, 8000))
     page.setDefaultTimeout(safeTimeout(context, selectorTimeout))
     logTime('page ready')
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: safeTimeout(context, navigationTimeout, 8000) })
+    const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: safeTimeout(context, navigationTimeout, 8000) })
+    if (response && (response.status() === 401 || response.status() === 407)) {
+        throw new Error(`Target returned ${response.status()} — check HTTP_AUTH_USER/HTTP_AUTH_PASS`)
+    }
     logTime('dom loaded')
     console.log(selector);
     await waitForCaptureReady(page, selector, context)
