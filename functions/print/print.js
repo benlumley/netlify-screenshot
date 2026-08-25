@@ -131,8 +131,19 @@ const requestHeaders = () => {
 }
 
 const waitForCaptureReady = async (page, selector, context) => {
-    await page.waitForSelector(selector, { timeout: safeTimeout(context, selectorTimeout) })
-    await page.waitForFunction(captureReadyCheck, { timeout: safeTimeout(context, selectorTimeout) }, selector, true)
+    try {
+        await page.waitForSelector(selector, { timeout: safeTimeout(context, selectorTimeout) })
+        await page.waitForFunction(captureReadyCheck, { timeout: safeTimeout(context, selectorTimeout) }, selector, true)
+    } catch (error) {
+        // TEMPORARY diagnostics: log what page the browser actually got.
+        const diag = await page.evaluate((sel) => ({
+            title: document.title,
+            selectorExists: Boolean(document.querySelector(sel)),
+            body: (document.body?.innerText || '').slice(0, 300),
+        }), selector).catch(() => null)
+        console.log('capture-ready diag:', JSON.stringify(diag))
+        throw error
+    }
 
     await page.evaluateHandle('document.fonts.ready')
     await page.waitForTimeout(500)
