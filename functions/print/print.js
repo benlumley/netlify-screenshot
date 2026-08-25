@@ -1,5 +1,5 @@
 const qs = require("qs")
-const { launchBrowser, closeBrowser } = require("../shared/browser")
+const { getBrowser, finishCapture } = require("../shared/browser")
 const { isAllowedCoverUrl, deriveFilename, mergeCover } = require("./pdfCover")
 const { captureReadyCheck } = require("./captureReady")
 const { httpCredentials } = require("../shared/httpAuth")
@@ -80,6 +80,8 @@ exports.handler = async (event, context) => {
     const logTime = (label) => console.log(`${label}: ${Date.now() - startedAt}ms`)
     console.log(`lambda budget: ${remainingTime(context)}ms`)
     let browser
+    let page
+    let failed = false
 
     try {
     const path = event.path.replace("/.netlify/functions", "").replace("/print", "").replace(".pdf", "")
@@ -101,10 +103,10 @@ exports.handler = async (event, context) => {
     const url = `${process.env.BASE_URL}${path}${qs.stringify(queryStringParameters, { addQueryPrefix: true })}`
     console.log(url);
 
-    browser = await launchBrowser()
+    browser = await getBrowser()
 
-    logTime('browser launched')
-    const page = await browser.newPage();
+    logTime('browser ready')
+    page = await browser.newPage();
     const credentials = httpCredentials()
     if (credentials) {
         await page.authenticate(credentials)
@@ -191,9 +193,10 @@ exports.handler = async (event, context) => {
     isBase64Encoded: true,
   }
     } catch (error) {
+        failed = true
         console.error(error)
         return errorResponse(error)
     } finally {
-        await closeBrowser(browser)
+        await finishCapture(browser, { failed, page })
     }
 }

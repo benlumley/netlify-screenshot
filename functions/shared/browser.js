@@ -1,12 +1,25 @@
 const chromium = require("@sparticuz/chromium")
 const puppeteer = require("puppeteer-core")
 
-// Shared browser plumbing for the print and screenshot handlers, which
-// previously carried byte-identical copies of the launch configuration and
-// teardown logic. Each invocation launches a fresh browser and closes it in
-// the handler's finally.
+// Shared browser lifecycle for the print and screenshot handlers.
+//
+// The browser is kept alive between warm Lambda invocations (both handlers set
+// callbackWaitsForEmptyEventLoop = false) so Chrome's HTTP cache survives —
+// the app bundle and the per-year API responses are identical for every
+// capture, which cuts several seconds off each warm capture. The browser is
+// recycled after maxCaptures successful uses to bound memory growth (Chrome's
+// memory is out-of-process, so a count is the only practical limit), and
+// discarded outright after any failed capture so a wedged instance can't
+// poison later invocations.
 
 const closeTimeout = 1000
+// Each reused capture adds ~100MB of Chrome memory (observed 743 -> 855 ->
+// 942MB) against the 1024MB Lambda, so recycle early — the cache win arrives
+// by the second capture anyway.
+const maxCaptures = 2
+
+let browserPromise = null
+let captureCount = 0
 
 const extraChromiumArgs = [
     '--autoplay-policy=user-gesture-required',
@@ -58,13 +71,6 @@ const launchArgs = () => (
         : [...chromium.args, ...extraChromiumArgs]
 )
 
-const launchBrowser = async () => puppeteer.launch({
-    args: launchArgs(),
-    defaultViewport: chromium.defaultViewport,
-    executablePath: await executablePath(),
-    headless: headlessMode(),
-})
-
 const closeBrowser = async (browser) => {
     if (!browser) {
         return
@@ -100,4 +106,77 @@ const closeBrowser = async (browser) => {
     }
 }
 
-module.exports = { launchBrowser, closeBrowser }
+const launch = async () => puppeteer.launch({
+    args: launchArgs(),
+    defaultViewport: chromium.defaultViewport,
+    executablePath: await executablePath(),
+    headless: headlessMode(),
+})
+
+const getBrowser = async () => {
+    if (browserPromise) {
+        try {
+            const browser = await browserPromise
+            if (browser.isConnected()) {
+                console.log(`browser reused (capture ${captureCount + 1})`)
+                return browser
+            }
+            // The connection died but the process may live on — kill it
+            // rather than orphaning it next to the replacement.
+            await closeBrowser(browser)
+        } catch (error) {
+            console.warn('previous browser unusable; relaunching:', error?.message || error)
+        }
+        browserPromise = null
+    }
+
+    captureCount = 0
+    browserPromise = launch()
+    return browserPromise
+}
+
+// Close the page without letting a hung close eat into the Lambda budget.
+// Returns whether the close was confirmed — an unconfirmed page may still be
+// running timers and holding memory, so the caller recycles the browser.
+const closePage = async (page) => {
+    if (!page) {
+        return true
+    }
+
+    try {
+        return await Promise.race([page.close().then(() => true), timeout(closeTimeout)]) === true
+    } catch (error) {
+        console.error('Failed to close page', error)
+        return false
+    }
+}
+
+const finishCapture = async (browser, { failed, page } = {}) => {
+    // The invocation never took a browser (e.g. the favicon guard returned
+    // early, which the catch-all redirect makes a real path) — the pool
+    // wasn't used, so it must be left alone.
+    if (!browser) {
+        return
+    }
+
+    if (failed || captureCount + 1 >= maxCaptures) {
+        if (!failed) {
+            console.log(`browser recycled after ${captureCount + 1} captures`)
+        }
+        // The browser is going away — closing the page first is wasted budget.
+        browserPromise = null
+        captureCount = 0
+        await closeBrowser(browser)
+        return
+    }
+
+    captureCount += 1
+    if (!(await closePage(page))) {
+        console.warn('page close unconfirmed; recycling browser')
+        browserPromise = null
+        captureCount = 0
+        await closeBrowser(browser)
+    }
+}
+
+module.exports = { getBrowser, finishCapture }
