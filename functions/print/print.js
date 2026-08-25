@@ -136,11 +136,20 @@ const waitForCaptureReady = async (page, selector, context) => {
         await page.waitForFunction(captureReadyCheck, { timeout: safeTimeout(context, selectorTimeout) }, selector, true)
     } catch (error) {
         // TEMPORARY diagnostics: log what page the browser actually got.
-        const diag = await page.evaluate((sel) => ({
-            title: document.title,
-            selectorExists: Boolean(document.querySelector(sel)),
-            body: (document.body?.innerText || '').slice(0, 300),
-        }), selector).catch(() => null)
+        const diag = await page.evaluate((sel) => {
+            const el = document.querySelector(sel)
+            const images = el ? Array.from(el.querySelectorAll('img')) : []
+            return {
+                title: document.title,
+                selectorExists: Boolean(el),
+                loaderPresent: el ? Boolean(el.querySelector('img[src*="loader.gif"]')) : null,
+                chartPresent: el ? Boolean(el.querySelector('canvas, svg, table')) : null,
+                totalImages: images.length,
+                badImages: images
+                    .filter((image) => !(image.complete && image.naturalWidth > 0))
+                    .map((image) => (image.currentSrc || image.src || '').slice(0, 120)),
+            }
+        }, selector).catch(() => null)
         console.log('capture-ready diag:', JSON.stringify(diag))
         throw error
     }
