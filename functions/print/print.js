@@ -142,12 +142,15 @@ const waitForCaptureReady = async (page, selector, context) => {
             return {
                 title: document.title,
                 selectorExists: Boolean(el),
-                loaderPresent: el ? Boolean(el.querySelector('img[src*="loader.gif"]')) : null,
+                loaderContexts: el ? Array.from(el.querySelectorAll('img[src*="loader.gif"]')).map((image) => (
+                    (image.closest('[id]')?.id || '') + '|' + (image.parentElement?.className || '').slice(0, 80)
+                )) : null,
                 chartPresent: el ? Boolean(el.querySelector('canvas, svg, table')) : null,
                 totalImages: images.length,
-                badImages: images
-                    .filter((image) => !(image.complete && image.naturalWidth > 0))
-                    .map((image) => (image.currentSrc || image.src || '').slice(0, 120)),
+                failedResources: performance.getEntriesByType('resource')
+                    .filter((entry) => entry.responseStatus === 0 || entry.responseStatus >= 400)
+                    .map((entry) => `${entry.responseStatus} ${entry.name.slice(0, 140)}`)
+                    .slice(0, 10),
             }
         }, selector).catch(() => null)
         console.log('capture-ready diag:', JSON.stringify(diag))
