@@ -133,34 +133,11 @@ const requestHeaders = () => {
 }
 
 const waitForCaptureReady = async (page, selector, context) => {
-    try {
-        await page.waitForSelector(selector, { timeout: safeTimeout(context, selectorTimeout) })
-        // The detail pages index ten years of level-5 data before rendering,
-        // which far outlasts 10s on Lambda CPU — give the readiness wait all
-        // the remaining budget minus the reserve needed to produce the PDF.
-        await page.waitForFunction(captureReadyCheck, { timeout: safeTimeout(context, readyTimeout, readyReserve) }, selector, true)
-    } catch (error) {
-        // TEMPORARY diagnostics: log what page the browser actually got.
-        const diag = await page.evaluate((sel) => {
-            const el = document.querySelector(sel)
-            const images = el ? Array.from(el.querySelectorAll('img')) : []
-            return {
-                title: document.title,
-                selectorExists: Boolean(el),
-                loaderContexts: el ? Array.from(el.querySelectorAll('img[src*="loader.gif"]')).map((image) => (
-                    (image.closest('[id]')?.id || '') + '|' + (image.parentElement?.className || '').slice(0, 80)
-                )) : null,
-                chartPresent: el ? Boolean(el.querySelector('canvas, svg, table')) : null,
-                totalImages: images.length,
-                apiRequests: performance.getEntriesByType('resource')
-                    .filter((entry) => entry.name.includes('api-'))
-                    .map((entry) => `${entry.responseStatus} ${Math.round(entry.duration)}ms ${entry.name.slice(0, 120)}`)
-                    .slice(0, 12),
-            }
-        }, selector).catch(() => null)
-        console.log('capture-ready diag:', JSON.stringify(diag))
-        throw error
-    }
+    await page.waitForSelector(selector, { timeout: safeTimeout(context, selectorTimeout) })
+    // The detail pages index ten years of level-5 data before rendering,
+    // which far outlasts 10s on Lambda CPU — give the readiness wait all
+    // the remaining budget minus the reserve needed to produce the PDF.
+    await page.waitForFunction(captureReadyCheck, { timeout: safeTimeout(context, readyTimeout, readyReserve) }, selector, true)
 
     await page.evaluateHandle('document.fonts.ready')
     await page.waitForTimeout(500)

@@ -9,6 +9,8 @@ const height = 1200
 const maxage = 60 * 60 * 24 * 7
 const navigationTimeout = 18000
 const selectorTimeout = 10000
+const readyTimeout = 22000
+const readyReserve = 7000
 const closeTimeout = 1000
 const lambdaReserve = 5000
 
@@ -122,7 +124,10 @@ const requestHeaders = () => {
 
 const waitForCaptureReady = async (page, selector, context) => {
     await page.waitForSelector(selector, { timeout: safeTimeout(context, selectorTimeout) })
-    await page.waitForFunction(captureReadyCheck, { timeout: safeTimeout(context, selectorTimeout) }, selector, false)
+    // The detail pages index ten years of level-5 data before rendering,
+    // which far outlasts 10s on Lambda CPU — give the readiness wait all
+    // the remaining budget minus the reserve needed to capture the PNG.
+    await page.waitForFunction(captureReadyCheck, { timeout: safeTimeout(context, readyTimeout, readyReserve) }, selector, false)
 
     await page.waitForTimeout(500)
 }
