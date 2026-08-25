@@ -3,6 +3,7 @@ const puppeteer = require("puppeteer-core");
 const qs = require("qs")
 const { isAllowedCoverUrl, deriveFilename, mergeCover } = require("./pdfCover")
 const { captureReadyCheck } = require("./captureReady")
+const { httpCredentials } = require("../shared/httpAuth")
 
 // Merged PDFs above this base64 size risk the synchronous Netlify response cap
 // (~6MB); fall back to the coverless PDF rather than returning a 502.
@@ -178,7 +179,6 @@ exports.handler = async (event, context) => {
     const filename = deriveFilename(path)
     const selector = queryStringParameters.view === 'table' ? '#mifDataTable' : '#screenshotPdfFrame'
     const url = `${process.env.BASE_URL}${path}${qs.stringify(queryStringParameters, { addQueryPrefix: true })}`
-    // const url = `https://idp-test.mif.services${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
     console.log(url);
 
     browser = await puppeteer.launch({
@@ -191,6 +191,10 @@ exports.handler = async (event, context) => {
 
     logTime('browser launched')
     const page = await browser.newPage();
+    const credentials = httpCredentials()
+    if (credentials) {
+        await page.authenticate(credentials)
+    }
     await page.setViewport({ width, height, deviceScaleFactor: 2 })
     await page.setUserAgent(userAgent)
     await page.setExtraHTTPHeaders(requestHeaders())
@@ -200,7 +204,10 @@ exports.handler = async (event, context) => {
     page.setDefaultNavigationTimeout(safeTimeout(context, navigationTimeout, 8000))
     page.setDefaultTimeout(safeTimeout(context, selectorTimeout))
     logTime('page ready')
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: safeTimeout(context, navigationTimeout, 8000) })
+    const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: safeTimeout(context, navigationTimeout, 8000) })
+    if (response && (response.status() === 401 || response.status() === 407)) {
+        throw new Error(`Target returned ${response.status()} — check HTTP_AUTH_USER/HTTP_AUTH_PASS`)
+    }
     logTime('dom loaded')
     console.log(selector);
     await waitForCaptureReady(page, selector, context)
