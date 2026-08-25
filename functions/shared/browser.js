@@ -13,7 +13,10 @@ const puppeteer = require("puppeteer-core")
 // poison later invocations.
 
 const closeTimeout = 1000
-const maxCaptures = 5
+// Each reused capture adds ~100MB of Chrome memory (observed 743 -> 855 ->
+// 942MB) against the 1024MB Lambda, so recycle early — the cache win arrives
+// by the second capture anyway.
+const maxCaptures = 2
 
 let browserPromise = null
 let captureCount = 0
