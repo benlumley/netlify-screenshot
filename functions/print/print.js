@@ -129,6 +129,12 @@ const requestHeaders = () => {
     return headers
 }
 
+const httpCredentials = () => (
+    process.env.HTTP_AUTH_USER && process.env.HTTP_AUTH_PASS
+        ? { username: process.env.HTTP_AUTH_USER, password: process.env.HTTP_AUTH_PASS }
+        : null
+)
+
 const waitForCaptureReady = async (page, selector, context) => {
     await page.waitForSelector(selector, { timeout: safeTimeout(context, selectorTimeout) })
     await page.waitForFunction(captureReadyCheck, { timeout: safeTimeout(context, selectorTimeout) }, selector, true)
@@ -178,7 +184,6 @@ exports.handler = async (event, context) => {
     const filename = deriveFilename(path)
     const selector = queryStringParameters.view === 'table' ? '#mifDataTable' : '#screenshotPdfFrame'
     const url = `${process.env.BASE_URL}${path}${qs.stringify(queryStringParameters, { addQueryPrefix: true })}`
-    // const url = `https://idp-test.mif.services${path}${qs.stringify(event.queryStringParameters, { addQueryPrefix: true })}`
     console.log(url);
 
     browser = await puppeteer.launch({
@@ -191,6 +196,10 @@ exports.handler = async (event, context) => {
 
     logTime('browser launched')
     const page = await browser.newPage();
+    const credentials = httpCredentials()
+    if (credentials) {
+        await page.authenticate(credentials)
+    }
     await page.setViewport({ width, height, deviceScaleFactor: 2 })
     await page.setUserAgent(userAgent)
     await page.setExtraHTTPHeaders(requestHeaders())
