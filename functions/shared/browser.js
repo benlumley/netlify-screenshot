@@ -121,6 +121,9 @@ const getBrowser = async () => {
                 console.log(`browser reused (capture ${captureCount + 1})`)
                 return browser
             }
+            // The connection died but the process may live on — kill it
+            // rather than orphaning it next to the replacement.
+            await closeBrowser(browser)
         } catch (error) {
             console.warn('previous browser unusable; relaunching:', error?.message || error)
         }
@@ -132,8 +135,32 @@ const getBrowser = async () => {
     return browserPromise
 }
 
-const finishCapture = async (browser, { failed } = {}) => {
-    if (failed) {
+// Close the page without letting a hung close eat into the Lambda budget.
+const closePage = async (page) => {
+    if (!page) {
+        return
+    }
+
+    try {
+        await Promise.race([page.close(), timeout(closeTimeout)])
+    } catch (error) {
+        console.error('Failed to close page', error)
+    }
+}
+
+const finishCapture = async (browser, { failed, page } = {}) => {
+    // The invocation never took a browser (e.g. the favicon guard returned
+    // early, which the catch-all redirect makes a real path) — the pool
+    // wasn't used, so it must be left alone.
+    if (!browser) {
+        return
+    }
+
+    if (failed || captureCount + 1 >= maxCaptures) {
+        if (!failed) {
+            console.log(`browser recycled after ${captureCount + 1} captures`)
+        }
+        // The browser is going away — closing the page first is wasted budget.
         browserPromise = null
         captureCount = 0
         await closeBrowser(browser)
@@ -141,12 +168,7 @@ const finishCapture = async (browser, { failed } = {}) => {
     }
 
     captureCount += 1
-    if (captureCount >= maxCaptures) {
-        console.log(`browser recycled after ${captureCount} captures`)
-        browserPromise = null
-        captureCount = 0
-        await closeBrowser(browser)
-    }
+    await closePage(page)
 }
 
 module.exports = { getBrowser, finishCapture }

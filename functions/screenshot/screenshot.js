@@ -10,12 +10,9 @@ const navigationTimeout = 18000
 const selectorTimeout = 10000
 const readyTimeout = 22000
 const readyReserve = 7000
-const closeTimeout = 1000
 const lambdaReserve = 5000
 
 const userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
-
-const timeout = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const remainingTime = (context) => (
     typeof context?.getRemainingTimeInMillis === 'function'
@@ -26,19 +23,6 @@ const remainingTime = (context) => (
 const safeTimeout = (context, preferred, reserve = lambdaReserve) => (
     Math.max(1000, Math.min(preferred, remainingTime(context) - reserve))
 )
-
-// Close the page without letting a hung close eat into the Lambda budget.
-const closePage = async (page) => {
-    if (!page) {
-        return
-    }
-
-    try {
-        await Promise.race([page.close(), timeout(closeTimeout)])
-    } catch (error) {
-        console.error('Failed to close page', error)
-    }
-}
 
 const requestHeaders = () => {
     const headers = {
@@ -107,7 +91,7 @@ exports.handler = async (event, context) => {
 
   browser = await getBrowser()
 
-  logTime('browser launched')
+  logTime('browser ready')
     page = await browser.newPage();
     const credentials = httpCredentials()
     if (credentials) {
@@ -153,7 +137,6 @@ exports.handler = async (event, context) => {
     console.error(error)
     return errorResponse(error)
   } finally {
-    await closePage(page)
-    await finishCapture(browser, { failed })
+    await finishCapture(browser, { failed, page })
   }
 }
