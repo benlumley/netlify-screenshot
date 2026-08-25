@@ -136,15 +136,18 @@ const getBrowser = async () => {
 }
 
 // Close the page without letting a hung close eat into the Lambda budget.
+// Returns whether the close was confirmed — an unconfirmed page may still be
+// running timers and holding memory, so the caller recycles the browser.
 const closePage = async (page) => {
     if (!page) {
-        return
+        return true
     }
 
     try {
-        await Promise.race([page.close(), timeout(closeTimeout)])
+        return await Promise.race([page.close().then(() => true), timeout(closeTimeout)]) === true
     } catch (error) {
         console.error('Failed to close page', error)
+        return false
     }
 }
 
@@ -168,7 +171,12 @@ const finishCapture = async (browser, { failed, page } = {}) => {
     }
 
     captureCount += 1
-    await closePage(page)
+    if (!(await closePage(page))) {
+        console.warn('page close unconfirmed; recycling browser')
+        browserPromise = null
+        captureCount = 0
+        await closeBrowser(browser)
+    }
 }
 
 module.exports = { getBrowser, finishCapture }

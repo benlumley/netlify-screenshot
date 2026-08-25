@@ -83,6 +83,20 @@ test('browser lifecycle', async (t) => {
         assert.equal(reused, pooled)
     })
 
+    await t.test('recycles the browser when the page close fails', async () => {
+        // Reset the pool so this capture is the browser's first — otherwise
+        // the recycle-at-maxCaptures path fires instead of the one under test.
+        await finishCapture(await getBrowser(), { failed: true })
+
+        const browser = await getBrowser()
+        const page = { close: async () => { throw new Error('close failed') } }
+        await finishCapture(browser, { page })
+
+        assert.equal(browser.alive, false)
+        const fresh = await getBrowser()
+        assert.notEqual(fresh, browser)
+    })
+
     await t.test('replaces a disconnected browser and closes its process', async () => {
         const browser = await getBrowser()
         browser.alive = false
