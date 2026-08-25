@@ -2,7 +2,7 @@ const chromium = require("@sparticuz/chromium");
 const puppeteer = require("puppeteer-core");
 const qs = require("qs")
 const { captureReadyCheck } = require("../print/captureReady")
-const { httpCredentials } = require("../print/httpAuth")
+const { httpCredentials } = require("../shared/httpAuth")
 
 const width = 1440
 const height = 1200

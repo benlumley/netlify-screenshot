@@ -3,7 +3,7 @@ const puppeteer = require("puppeteer-core");
 const qs = require("qs")
 const { isAllowedCoverUrl, deriveFilename, mergeCover } = require("./pdfCover")
 const { captureReadyCheck } = require("./captureReady")
-const { httpCredentials } = require("./httpAuth")
+const { httpCredentials } = require("../shared/httpAuth")
 
 // Merged PDFs above this base64 size risk the synchronous Netlify response cap
 // (~6MB); fall back to the coverless PDF rather than returning a 502.
