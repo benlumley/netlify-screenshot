@@ -10,7 +10,6 @@
   "author": "Steve Lacey <steve@steve.ly>",
   "license": "MIT",
   "dependencies": {
-    "@sparticuz/chromium": "^123.0.0",
     "@sparticuz/chromium-min": "^123.0.1",
     "pdf-lib": "^1.17.1",
     "puppeteer-core": "19.8",

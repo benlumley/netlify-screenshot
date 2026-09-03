@@ -1,13 +1,6 @@
 [build]
   functions = "functions/"
 
-# The print function's memory/vCPU is set in-code (print.mjs config) — that
-# requires the v2 runtime shape. The chromium package carries a binary
-# archive esbuild can't inline, so it must ship as a real node module.
-[functions]
-  node_bundler = "esbuild"
-  external_node_modules = ["@sparticuz/chromium", "puppeteer-core"]
-
 [template.environment]
   BASE_URL = "Base URL e.g. https://example.com"
   BUILD_BYPASS_KEY = "Build bypass key sent as X-IDP-Build-Key"
