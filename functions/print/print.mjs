@@ -1,5 +1,6 @@
 import qs from "qs"
-import { launchBrowser, closeBrowser } from "../shared/browser.js"
+import chromium from "@sparticuz/chromium-min"
+import puppeteer from "puppeteer-core"
 import { isAllowedCoverUrl, deriveFilename, mergeCover } from "./pdfCover.js"
 import { captureReadyCheck } from "./captureReady.js"
 import { httpCredentials } from "../shared/httpAuth.js"
@@ -9,6 +10,59 @@ import { httpCredentials } from "../shared/httpAuth.js"
 // 1024MB default).
 export const config = {
     memory: "4gb",
+}
+
+// chromium-min ships no binary (the v2 bundler can't carry @sparticuz/chromium's
+// pack); the matching pack is downloaded on cold start and cached in /tmp.
+const chromiumPackUrl = process.env.CHROMIUM_PACK_URL
+    || 'https://github.com/Sparticuz/chromium/releases/download/v123.0.1/chromium-v123.0.1-pack.tar'
+
+const closeTimeout = 1000
+
+const launchBrowser = async () => puppeteer.launch({
+    args: process.env.PUPPETEER_EXECUTABLE_PATH
+        ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled']
+        : chromium.args,
+    defaultViewport: chromium.defaultViewport,
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || await chromium.executablePath(chromiumPackUrl),
+    headless: process.env.PUPPETEER_EXECUTABLE_PATH ? true : chromium.headless,
+})
+
+const timeout = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const closeBrowser = async (browser) => {
+    if (!browser) {
+        return
+    }
+
+    let closed = false
+
+    try {
+        await Promise.race([
+            browser.close().then(() => {
+                closed = true
+            }),
+            timeout(closeTimeout),
+        ])
+    } catch (error) {
+        console.error('Failed to close browser', error)
+    }
+
+    if (closed) {
+        return
+    }
+
+    try {
+        browser.disconnect()
+    } catch (error) {
+        console.error('Failed to disconnect browser', error)
+    }
+
+    try {
+        browser.process()?.kill('SIGKILL')
+    } catch (error) {
+        console.error('Failed to kill browser process', error)
+    }
 }
 
 // Merged PDFs above this size risk the synchronous Netlify response cap
