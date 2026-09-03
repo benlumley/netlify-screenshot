@@ -197,3 +197,8 @@ exports.handler = async (event, context) => {
         await closeBrowser(browser)
     }
 }
+
+// Function-level config parsed by Netlify's bundler (memory scales vCPU).
+exports.config = {
+    memory: "4gb",
+}
