@@ -1,13 +1,11 @@
 [build]
   functions = "functions/"
 
-# Captures are CPU-bound (~13s of parse/index/chart render on the default
-# 0.5 vCPU); 4GB memory brings 2 vCPUs. Requires a credit-based plan.
+# The print function's memory/vCPU is set in-code (print.mjs config) — that
+# requires the v2 runtime shape. The chromium package carries a binary
+# archive esbuild can't inline, so it must ship as a real node module.
 [functions.print]
-  vcpu = 2.0
-
-[functions.screenshot]
-  vcpu = 2.0
+  external_node_modules = ["@sparticuz/chromium", "puppeteer-core"]
 
 [template.environment]
   BASE_URL = "Base URL e.g. https://example.com"
