@@ -4,10 +4,10 @@
 # Captures are CPU-bound (~13s of parse/index/chart render on the default
 # 0.5 vCPU); 4GB memory brings 2 vCPUs. Requires a credit-based plan.
 [functions.print]
-  memory = "4gb"
+  vcpu = 2.0
 
 [functions.screenshot]
-  memory = "4gb"
+  vcpu = 2.0
 
 [template.environment]
   BASE_URL = "Base URL e.g. https://example.com"
