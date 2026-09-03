@@ -4,7 +4,8 @@
 # The print function's memory/vCPU is set in-code (print.mjs config) — that
 # requires the v2 runtime shape. The chromium package carries a binary
 # archive esbuild can't inline, so it must ship as a real node module.
-[functions.print]
+[functions]
+  node_bundler = "esbuild"
   external_node_modules = ["@sparticuz/chromium", "puppeteer-core"]
 
 [template.environment]
