@@ -1,14 +1,6 @@
 [build]
   functions = "functions/"
 
-# Captures are CPU-bound (~13s of parse/index/chart render on the default
-# 0.5 vCPU); 4GB memory brings 2 vCPUs. Requires a credit-based plan.
-[functions.print]
-  memory = "4gb"
-
-[functions.screenshot]
-  memory = "4gb"
-
 [template.environment]
   BASE_URL = "Base URL e.g. https://example.com"
   BUILD_BYPASS_KEY = "Build bypass key sent as X-IDP-Build-Key"

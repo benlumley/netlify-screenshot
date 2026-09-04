@@ -1,13 +1,17 @@
-const chromium = require("@sparticuz/chromium")
-const puppeteer = require("puppeteer-core")
+import chromium from "@sparticuz/chromium-min"
+import puppeteer from "puppeteer-core"
 
-// Shared browser plumbing for the print and screenshot handlers, which
-// previously carried byte-identical copies of the launch configuration and
-// teardown logic. Each invocation launches a fresh browser and closes it in
-// the handler's finally.
+// Browser launch/teardown for the runtime-API-v2 functions. chromium-min
+// ships no binary (the v2 bundler can't carry @sparticuz/chromium's pack);
+// the matching pack is downloaded on cold start and cached in /tmp.
+const chromiumPackUrl = process.env.CHROMIUM_PACK_URL
+    || 'https://github.com/Sparticuz/chromium/releases/download/v123.0.1/chromium-v123.0.1-pack.tar'
 
 const closeTimeout = 1000
 
+// Appended to chromium's defaults, matching the v1 handlers — notably
+// disabling AutomationControlled, since chromium-min's own args include
+// --enable-automation and the target sites sit behind bot detection.
 const extraChromiumArgs = [
     '--autoplay-policy=user-gesture-required',
     '--disable-background-networking',
@@ -50,22 +54,16 @@ const extraChromiumArgs = [
 
 const timeout = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-const executablePath = async () => process.env.PUPPETEER_EXECUTABLE_PATH || await chromium.executablePath()
-const headlessMode = () => process.env.PUPPETEER_EXECUTABLE_PATH ? true : chromium.headless
-const launchArgs = () => (
-    process.env.PUPPETEER_EXECUTABLE_PATH
+export const launchBrowser = async () => puppeteer.launch({
+    args: process.env.PUPPETEER_EXECUTABLE_PATH
         ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled']
-        : [...chromium.args, ...extraChromiumArgs]
-)
-
-const launchBrowser = async () => puppeteer.launch({
-    args: launchArgs(),
+        : [...chromium.args, ...extraChromiumArgs],
     defaultViewport: chromium.defaultViewport,
-    executablePath: await executablePath(),
-    headless: headlessMode(),
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || await chromium.executablePath(chromiumPackUrl),
+    headless: process.env.PUPPETEER_EXECUTABLE_PATH ? true : chromium.headless,
 })
 
-const closeBrowser = async (browser) => {
+export const closeBrowser = async (browser) => {
     if (!browser) {
         return
     }
@@ -99,5 +97,3 @@ const closeBrowser = async (browser) => {
         console.error('Failed to kill browser process', error)
     }
 }
-
-module.exports = { launchBrowser, closeBrowser }

@@ -1,12 +1,22 @@
-const qs = require("qs")
-const { launchBrowser, closeBrowser } = require("../shared/browser")
-const { isAllowedCoverUrl, deriveFilename, mergeCover } = require("./pdfCover")
-const { captureReadyCheck } = require("./captureReady")
-const { httpCredentials } = require("../shared/httpAuth")
+import qs from "qs"
+import { launchBrowser, closeBrowser } from "../shared/chromium.mjs"
+import { safeTimeout, requestHeaders, errorResponse } from "../shared/capture.mjs"
+import { isAllowedCoverUrl, deriveFilename, mergeCover } from "./pdfCover.js"
+import { captureReadyCheck } from "./captureReady.js"
+import { httpCredentials } from "../shared/httpAuth.js"
 
-// Merged PDFs above this base64 size risk the synchronous Netlify response cap
+// Runtime API v2 function — the modern shape is required for the memory/vCPU
+// configuration below to take effect (v1 handler functions silently keep the
+// 1024MB default).
+export const config = {
+    memory: "4gb",
+}
+
+// Merged PDFs above this size risk the synchronous Netlify response cap
 // (~6MB); fall back to the coverless PDF rather than returning a 502.
-const maxCoveredBase64 = 5.5 * 1024 * 1024
+// The 0.75 keeps the cap byte-equivalent to the v1 handler's 5.5MB base64
+// limit (base64 inflates by 4/3) — deliberately unchanged in the v2 port.
+const maxCoveredBytes = 5.5 * 1024 * 1024 * 0.75
 
 // Abort the cover fetch if it stalls, so a slow asset host degrades to the
 // coverless PDF instead of hanging the whole function into a Lambda timeout.
@@ -20,76 +30,33 @@ const navigationTimeout = 18000
 const selectorTimeout = 10000
 const readyTimeout = 22000
 const readyReserve = 7000
-const lambdaReserve = 5000
 
 const userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
 
-const remainingTime = (context) => (
-    typeof context?.getRemainingTimeInMillis === 'function'
-        ? context.getRemainingTimeInMillis()
-        : 26000
-)
-
-const safeTimeout = (context, preferred, reserve = lambdaReserve) => (
-    Math.max(1000, Math.min(preferred, remainingTime(context) - reserve))
-)
-
-const requestHeaders = () => {
-    const headers = {
-        'accept-language': 'en-GB,en-US;q=0.9,en;q=0.8',
-    }
-
-    if (process.env.BUILD_BYPASS_KEY) {
-        headers['X-IDP-Build-Key'] = process.env.BUILD_BYPASS_KEY
-    }
-
-    return headers
-}
-
-const waitForCaptureReady = async (page, selector, context) => {
-    await page.waitForSelector(selector, { timeout: safeTimeout(context, selectorTimeout) })
+const waitForCaptureReady = async (page, selector, startedAt) => {
+    await page.waitForSelector(selector, { timeout: safeTimeout(startedAt, selectorTimeout) })
     // The detail pages index ten years of level-5 data before rendering,
     // which far outlasts 10s on Lambda CPU — give the readiness wait all
     // the remaining budget minus the reserve needed to produce the PDF.
-    await page.waitForFunction(captureReadyCheck, { timeout: safeTimeout(context, readyTimeout, readyReserve) }, selector, true)
+    await page.waitForFunction(captureReadyCheck, { timeout: safeTimeout(startedAt, readyTimeout, readyReserve) }, selector, true)
 
     await page.evaluateHandle('document.fonts.ready')
     await page.waitForTimeout(500)
 }
 
-const errorResponse = (error) => {
-    const isTimeout = error?.name === 'TimeoutError'
-
-    return {
-        statusCode: isTimeout ? 504 : 500,
-        headers: {
-            "Cache-Control": "no-store",
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            error: isTimeout ? 'Screenshot timed out' : 'Screenshot failed',
-            message: error?.message || String(error),
-        }),
-    }
-}
-
-exports.handler = async (event, context) => {
-    context.callbackWaitsForEmptyEventLoop = false
-
+export default async (req) => {
     const startedAt = Date.now()
     const logTime = (label) => console.log(`${label}: ${Date.now() - startedAt}ms`)
-    console.log(`lambda budget: ${remainingTime(context)}ms`)
     let browser
 
     try {
-    const path = event.path.replace("/.netlify/functions", "").replace("/print", "").replace(".pdf", "")
+    const requestUrl = new URL(req.url)
+    const path = requestUrl.pathname.replace("/.netlify/functions", "").replace("/print", "").replace(".pdf", "")
     if (path.indexOf('favicon.ico') > -1) {
-        return {
-            statusCode: 404
-        }
+        return new Response(null, { status: 404 })
     }
     // `cover` is service-only (the PDF to prepend); never forward it to the app.
-    const { cover: coverUrl, ...forwardedParams } = event.queryStringParameters || {}
+    const { cover: coverUrl, ...forwardedParams } = Object.fromEntries(requestUrl.searchParams)
     const queryStringParameters = {
         ...forwardedParams,
         takingss: 1,
@@ -115,16 +82,16 @@ exports.handler = async (event, context) => {
     await page.evaluateOnNewDocument(() => {
         Object.defineProperty(navigator, 'webdriver', { get: () => undefined })
     })
-    page.setDefaultNavigationTimeout(safeTimeout(context, navigationTimeout, 8000))
-    page.setDefaultTimeout(safeTimeout(context, selectorTimeout))
+    page.setDefaultNavigationTimeout(safeTimeout(startedAt, navigationTimeout, 8000))
+    page.setDefaultTimeout(safeTimeout(startedAt, selectorTimeout))
     logTime('page ready')
-    const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: safeTimeout(context, navigationTimeout, 8000) })
+    const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: safeTimeout(startedAt, navigationTimeout, 8000) })
     if (response && (response.status() === 401 || response.status() === 407)) {
         throw new Error(`Target returned ${response.status()} — check HTTP_AUTH_USER/HTTP_AUTH_PASS`)
     }
     logTime('dom loaded')
     console.log(selector);
-    await waitForCaptureReady(page, selector, context)
+    await waitForCaptureReady(page, selector, startedAt)
     logTime('capture ready')
 
     await page.emulateMediaType('screen');
@@ -145,7 +112,7 @@ exports.handler = async (event, context) => {
   // Prepend the cover if one was requested. Any failure here degrades to the
   // coverless PDF (Principle 4) — it must never turn into a hard error, so the
   // fetch/merge and pdf-lib require are isolated in their own try/catch.
-  let responseBase64 = pdf.toString("base64")
+  let responseBody = pdf
 
   if (coverUrl) {
     try {
@@ -156,19 +123,19 @@ exports.handler = async (event, context) => {
         // allowlisted host can't bounce the fetch to an unvalidated URL. The
         // abort timeout bounds a slow download so it degrades to coverless.
         const controller = new AbortController()
-        const coverTimeout = setTimeout(() => controller.abort(), safeTimeout(context, coverFetchTimeout))
+        const coverTimeout = setTimeout(() => controller.abort(), safeTimeout(startedAt, coverFetchTimeout))
         try {
           const coverResponse = await fetch(coverUrl, { redirect: 'error', signal: controller.signal })
           if (!coverResponse.ok) {
             throw new Error(`cover fetch failed: ${coverResponse.status}`)
           }
           const coverBuffer = Buffer.from(await coverResponse.arrayBuffer())
-          const mergedBase64 = (await mergeCover(pdf, coverBuffer)).toString("base64")
+          const merged = await mergeCover(pdf, coverBuffer)
 
-          if (mergedBase64.length > maxCoveredBase64) {
+          if (merged.length > maxCoveredBytes) {
             console.warn('merged pdf exceeds response cap; returning coverless')
           } else {
-            responseBase64 = mergedBase64
+            responseBody = merged
             logTime('cover merged')
           }
         } finally {
@@ -180,16 +147,14 @@ exports.handler = async (event, context) => {
     }
   }
 
-  return {
-    statusCode: 200,
+  return new Response(responseBody, {
+    status: 200,
     headers: {
       "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename=${filename}`,
-        "Cache-Control": `public, max-age=${maxage}`,
+      "Content-Disposition": `attachment; filename=${filename}`,
+      "Cache-Control": `public, max-age=${maxage}`,
     },
-    body: responseBase64,
-    isBase64Encoded: true,
-  }
+  })
     } catch (error) {
         console.error(error)
         return errorResponse(error)

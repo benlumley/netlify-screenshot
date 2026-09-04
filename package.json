@@ -2,7 +2,7 @@
   "name": "netlify-screenshot",
   "version": "1.0.0",
   "description": "Netlify functions for taking screenshots of webpages using Puppeteer",
-  "main": "functions/screenshot/screenshot.js",
+  "main": "functions/screenshot/screenshot.mjs",
   "scripts": {
     "test": "node --test"
   },
@@ -10,7 +10,7 @@
   "author": "Steve Lacey <steve@steve.ly>",
   "license": "MIT",
   "dependencies": {
-    "@sparticuz/chromium": "^123.0.0",
+    "@sparticuz/chromium-min": "^123.0.1",
     "pdf-lib": "^1.17.1",
     "puppeteer-core": "19.8",
     "qs": "^6.10.1"
