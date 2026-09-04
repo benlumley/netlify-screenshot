@@ -2,7 +2,7 @@
   "name": "netlify-screenshot",
   "version": "1.0.0",
   "description": "Netlify functions for taking screenshots of webpages using Puppeteer",
-  "main": "functions/screenshot/screenshot.js",
+  "main": "functions/screenshot/screenshot.mjs",
   "scripts": {
     "test": "node --test"
   },
