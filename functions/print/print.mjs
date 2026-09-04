@@ -1,5 +1,6 @@
 import qs from "qs"
 import { launchBrowser, closeBrowser } from "../shared/chromium.mjs"
+import { safeTimeout, requestHeaders, errorResponse } from "../shared/capture.mjs"
 import { isAllowedCoverUrl, deriveFilename, mergeCover } from "./pdfCover.js"
 import { captureReadyCheck } from "./captureReady.js"
 import { httpCredentials } from "../shared/httpAuth.js"
@@ -13,6 +14,8 @@ export const config = {
 
 // Merged PDFs above this size risk the synchronous Netlify response cap
 // (~6MB); fall back to the coverless PDF rather than returning a 502.
+// The 0.75 keeps the cap byte-equivalent to the v1 handler's 5.5MB base64
+// limit (base64 inflates by 4/3) — deliberately unchanged in the v2 port.
 const maxCoveredBytes = 5.5 * 1024 * 1024 * 0.75
 
 // Abort the cover fetch if it stalls, so a slow asset host degrades to the
@@ -27,29 +30,8 @@ const navigationTimeout = 18000
 const selectorTimeout = 10000
 const readyTimeout = 22000
 const readyReserve = 7000
-const lambdaReserve = 5000
-
-// The v2 runtime has no getRemainingTimeInMillis; track the budget from the
-// observed 26s synchronous limit instead.
-const lambdaBudget = 26000
 
 const userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
-
-const safeTimeout = (startedAt, preferred, reserve = lambdaReserve) => (
-    Math.max(1000, Math.min(preferred, lambdaBudget - (Date.now() - startedAt) - reserve))
-)
-
-const requestHeaders = () => {
-    const headers = {
-        'accept-language': 'en-GB,en-US;q=0.9,en;q=0.8',
-    }
-
-    if (process.env.BUILD_BYPASS_KEY) {
-        headers['X-IDP-Build-Key'] = process.env.BUILD_BYPASS_KEY
-    }
-
-    return headers
-}
 
 const waitForCaptureReady = async (page, selector, startedAt) => {
     await page.waitForSelector(selector, { timeout: safeTimeout(startedAt, selectorTimeout) })
@@ -60,24 +42,6 @@ const waitForCaptureReady = async (page, selector, startedAt) => {
 
     await page.evaluateHandle('document.fonts.ready')
     await page.waitForTimeout(500)
-}
-
-const errorResponse = (error) => {
-    const isTimeout = error?.name === 'TimeoutError'
-
-    return new Response(
-        JSON.stringify({
-            error: isTimeout ? 'Screenshot timed out' : 'Screenshot failed',
-            message: error?.message || String(error),
-        }),
-        {
-            status: isTimeout ? 504 : 500,
-            headers: {
-                "Cache-Control": "no-store",
-                "Content-Type": "application/json",
-            },
-        },
-    )
 }
 
 export default async (req) => {
