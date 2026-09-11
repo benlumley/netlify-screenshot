@@ -22,8 +22,16 @@ const maxCoveredBytes = 5.5 * 1024 * 1024 * 0.75
 // coverless PDF instead of hanging the whole function into a Lambda timeout.
 const coverFetchTimeout = 8000
 
-const width = 1440
 const height = 1200
+const pageMargin = `${29 / 72}in`
+
+// The measure/location/group profile PDFs render 1.25x larger than the
+// Data-page export so their type and boxes match the printed report design:
+// 1146px x 0.625 = 716px = A4 width minus the two 29pt margins, so the content
+// still fills the page exactly. The Data page keeps its original 1440 x 0.5.
+const isDetailPage = (path) => /(^|\/)(locations|measures)\//.test(path)
+const renderSettings = (path) =>
+    isDetailPage(path) ? { width: 1146, scale: 0.625 } : { width: 1440, scale: 0.5 }
 
 const maxage = 60 * 60 * 24 * 7
 const navigationTimeout = 18000
@@ -76,6 +84,7 @@ export default async (req) => {
     if (credentials) {
         await page.authenticate(credentials)
     }
+    const { width, scale } = renderSettings(path)
     await page.setViewport({ width, height, deviceScaleFactor: 2 })
     await page.setUserAgent(userAgent)
     await page.setExtraHTTPHeaders(requestHeaders())
@@ -96,14 +105,18 @@ export default async (req) => {
 
     await page.emulateMediaType('screen');
     const pdf = await page.pdf({
-    format: "A4",
+    // Explicit A4 (Chrome's "A4" preset is 0.1% oversize).
+    width: "210mm",
+    height: "297mm",
     printBackground: true,
-    scale: 0.5,
+    scale,
+    // 29pt on every side, per the design guide for the profile booklets
+    // (InDesign "29 px" = 29pt). Puppeteer has no pt unit, hence inches.
     margin: {
-      top: 20,
-      right: 40,
-      bottom: 20,
-      left: 40,
+      top: pageMargin,
+      right: pageMargin,
+      bottom: pageMargin,
+      left: pageMargin,
     },
   })
 
