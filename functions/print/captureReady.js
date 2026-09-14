@@ -41,16 +41,18 @@ function captureReadyCheck(captureSelector, requireImages) {
         })
     }
 
-    // In-place detail-page <main> frames have no such container. The page
-    // renders in phases: the first two charts draw as empty canvases while the
-    // data is still being indexed, then everything drops back to spinners and
-    // is rebuilt. The Scores/Trends grid (.top-ten-table) only appears in that
-    // final phase — on every detail page type — so require it alongside a
-    // chart canvas rather than accepting any chart/table (which passed on the
-    // empty canvases and printed a page of spinners).
+    // In-place detail-page <main> frames have no such container. Before React
+    // mounts, the measure template already contains legacy markup — empty
+    // <canvas> placeholders, header-only .top-ten-table grids and a tab bar —
+    // so "a canvas/table exists" (and even "the grid exists") was true on a
+    // page with no data yet, and slower Lambda runs printed exactly that. Data
+    // rows (.fromjs cells) only ever come from the React tables, and every
+    // detail page type renders a Scores/Trends grid, so require rows plus a
+    // chart canvas. The spinner gate above then covers the later loading
+    // phases (Drivers of Change waits on a web worker).
     return (
         Boolean(captureElement.querySelector('canvas')) &&
-        Boolean(captureElement.querySelector('.top-ten-table'))
+        Boolean(captureElement.querySelector('.top-ten-table .fromjs'))
     )
 }
 
@@ -73,7 +75,7 @@ function frameFingerprint(captureSelector) {
         count('canvas'),
         count('img[src*="loader.gif"]'),
         count('table'),
-        count('.top-ten-table'),
+        count('.top-ten-table .fromjs'),
         captureElement.querySelectorAll('*').length,
     ].join('|')
 }
