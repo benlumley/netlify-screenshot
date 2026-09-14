@@ -2,6 +2,7 @@ import qs from "qs"
 import { launchBrowser, closeBrowser } from "../shared/chromium.mjs"
 import { safeTimeout, requestHeaders, errorResponse } from "../shared/capture.mjs"
 import { isAllowedCoverUrl, deriveFilename, mergeCover } from "./pdfCover.js"
+import { scalePagesTo } from "./pdfScale.js"
 import { captureReadyCheck } from "./captureReady.js"
 import { httpCredentials } from "../shared/httpAuth.js"
 
@@ -23,7 +24,12 @@ const maxCoveredBytes = 5.5 * 1024 * 1024 * 0.75
 const coverFetchTimeout = 8000
 
 const height = 1200
-const pageMargin = `${29 / 72}in`
+
+// 29pt on every side, per the design guide for the profile booklets (InDesign
+// "29 px" = 29pt). Puppeteer has no pt unit, hence inches. Explicit A4 because
+// Chrome's "A4" preset is 0.1% oversize.
+const pageMarginPt = 29
+const a4 = { widthMm: 210, heightMm: 297, widthPt: (210 / 25.4) * 72, heightPt: (297 / 25.4) * 72 }
 
 // The measure/location/group profile PDFs render 1.25x larger than the
 // Data-page export so their type and boxes match the printed report design:
@@ -32,6 +38,31 @@ const pageMargin = `${29 / 72}in`
 const isDetailPage = (path) => /(^|\/)(locations|measures)\//.test(path)
 const renderSettings = (path) =>
     isDetailPage(path) ? { width: 1146, scale: 0.625 } : { width: 1440, scale: 0.5 }
+
+// Chromium's printToPDF `scale` shrinks the layout but evaluates media queries
+// against the unscaled paper width, so a scaled A4 print gets the site's mobile
+// breakpoints. For the detail pages we instead print at scale 1 onto paper
+// 1/scale times A4 (so layout and breakpoints agree at 1146px) and shrink the
+// finished pages to A4 with pdf-lib (see pdfScale.js). The Data page keeps the
+// plain scaled print it has always had.
+const pdfOptions = (path, scale) => {
+    if (isDetailPage(path)) {
+        const margin = `${pageMarginPt / 72 / scale}in`
+        return {
+            width: `${a4.widthMm / scale}mm`,
+            height: `${a4.heightMm / scale}mm`,
+            scale: 1,
+            margin: { top: margin, right: margin, bottom: margin, left: margin },
+        }
+    }
+    const margin = `${pageMarginPt / 72}in`
+    return {
+        width: `${a4.widthMm}mm`,
+        height: `${a4.heightMm}mm`,
+        scale,
+        margin: { top: margin, right: margin, bottom: margin, left: margin },
+    }
+}
 
 const maxage = 60 * 60 * 24 * 7
 const navigationTimeout = 18000
@@ -104,23 +135,13 @@ export default async (req) => {
     logTime('capture ready')
 
     await page.emulateMediaType('screen');
-    const pdf = await page.pdf({
-    // Explicit A4 (Chrome's "A4" preset is 0.1% oversize).
-    width: "210mm",
-    height: "297mm",
-    printBackground: true,
-    scale,
-    // 29pt on every side, per the design guide for the profile booklets
-    // (InDesign "29 px" = 29pt). Puppeteer has no pt unit, hence inches.
-    margin: {
-      top: pageMargin,
-      right: pageMargin,
-      bottom: pageMargin,
-      left: pageMargin,
-    },
-  })
+    let pdf = await page.pdf({ printBackground: true, ...pdfOptions(path, scale) })
+    logTime('pdf created')
 
-  logTime('pdf created')
+    if (isDetailPage(path)) {
+        pdf = await scalePagesTo(pdf, { scale, width: a4.widthPt, height: a4.heightPt })
+        logTime('pdf scaled to A4')
+    }
 
   // Prepend the cover if one was requested. Any failure here degrades to the
   // coverless PDF (Principle 4) — it must never turn into a hard error, so the
