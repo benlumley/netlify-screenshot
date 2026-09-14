@@ -6,7 +6,7 @@ import { scalePagesTo } from "./pdfScale.js"
 // Static import on purpose: the bundler traces node_modules from these, not
 // from `require()` calls inside the CJS helpers (see pdfScale.js).
 import { PDFDocument } from "pdf-lib"
-import { captureReadyCheck, frameFingerprint, hasNoSpinner } from "./captureReady.js"
+import { captureReadyCheck, captureSignalCheck, frameFingerprint, hasNoSpinner } from "./captureReady.js"
 import { httpCredentials } from "../shared/httpAuth.js"
 
 // Runtime API v2 function — the modern shape is required for the memory/vCPU
@@ -75,10 +75,82 @@ const settleInterval = 500
 const settleAttempts = 16
 const readyReserve = 7000
 
+// How long, after the frame selector appears, a detail page gets to raise the
+// front end's data-capture-ready signal before we fall back to the DOM
+// heuristic. The front end deploys separately, so older builds never raise it.
+// Waiting costs an older build nothing when its page takes longer than this to
+// render (the heuristic then passes at once — the page kept rendering, and the
+// heuristic's deadline is absolute), and at most this much when it renders
+// faster. On ss-test (Sept 2026) the heuristic first passed 3.0–3.6s after
+// dom loaded on typical runs, and the page is only fully rendered after that
+// (Drivers of Change waits on a web worker, ~1s more with Chrome 123 locally),
+// so a signalling build lands around 4–5s: 4s would miss most signals, while
+// 6s costs an older build ~2.5s on a typical print. A signalling build slower
+// than this simply prints via the heuristic (and logs that the signal was late).
+const signalGrace = 6000
+
 const userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
 
-const waitForCaptureReady = async (page, selector, startedAt) => {
+// Resolves true once the signal is raised, false if it isn't within `timeout`.
+const waitForCaptureSignal = async (page, selector, timeout) => {
+    try {
+        await page.waitForFunction(captureSignalCheck, { timeout }, selector)
+        return true
+    } catch (error) {
+        if (error?.name === 'TimeoutError') {
+            return false
+        }
+        throw error
+    }
+}
+
+// The app has declared the frame rendered, so only a short confirmation is
+// needed: fonts loaded, and the frame unchanged across one interval with the
+// signal still raised. If the frame changed, compare again; falls through to
+// print when the budget runs low. If the app cleared the signal (back to
+// loading), wait for it again — and fail with a timeout, like the heuristic's
+// own readiness gate, rather than print a page the app says is loading.
+const settleOnSignal = async (page, selector, startedAt) => {
+    for (let attempt = 0; attempt < settleAttempts; attempt += 1) {
+        await page.evaluateHandle('document.fonts.ready')
+        const previous = await page.evaluate(frameFingerprint, selector)
+        // safeTimeout never returns less than 1000, so ask for more than that:
+        // it only comes back as 1000 once under ~1s is left before the reserve.
+        if (safeTimeout(startedAt, settleInterval + 1000, readyReserve) <= 1000) {
+            return
+        }
+        await page.waitForTimeout(settleInterval)
+        const current = await page.evaluate(frameFingerprint, selector)
+        if (!await page.evaluate(captureSignalCheck, selector)) {
+            await page.waitForFunction(captureSignalCheck, { timeout: safeTimeout(startedAt, readyTimeout, readyReserve) }, selector)
+        } else if (current === previous) {
+            return
+        }
+    }
+}
+
+// Returns which path decided readiness: 'signal' or 'heuristic'.
+const waitForCaptureReady = async (page, selector, startedAt, useSignal) => {
     await page.waitForSelector(selector, { timeout: safeTimeout(startedAt, selectorTimeout) })
+
+    // End the grace at least 1s before the heuristic's deadline (skipping it
+    // when there isn't that much left), so falling back never extends it.
+    const graceTimeout = safeTimeout(startedAt, signalGrace + 1000, readyReserve) - 1000
+    if (useSignal && graceTimeout > 0 && await waitForCaptureSignal(page, selector, graceTimeout)) {
+        await settleOnSignal(page, selector, startedAt)
+        return 'signal'
+    }
+
+    await waitForHeuristicReady(page, selector, startedAt)
+    if (useSignal && await page.evaluate(captureSignalCheck, selector)) {
+        // The build does signal, just later than signalGrace — worth knowing
+        // when tuning it.
+        console.log('capture signal raised after the grace period')
+    }
+    return 'heuristic'
+}
+
+const waitForHeuristicReady = async (page, selector, startedAt) => {
     // The detail pages index ten years of level-5 data before rendering,
     // which far outlasts 10s on Lambda CPU — give the readiness wait all
     // the remaining budget minus the reserve needed to produce the PDF.
@@ -156,8 +228,11 @@ export default async (req) => {
     }
     logTime('dom loaded')
     console.log(selector);
-    await waitForCaptureReady(page, selector, startedAt)
-    logTime('capture ready')
+    // Only the detail-page frame carries the signal; the Data page never
+    // raises it, so it goes straight to the heuristic as before.
+    const useSignal = isDetailPage(path) && selector === '#screenshotPdfFrame'
+    const readyVia = await waitForCaptureReady(page, selector, startedAt, useSignal)
+    logTime(`capture ready (${readyVia})`)
 
     await page.emulateMediaType('screen');
     let pdf = await page.pdf({ printBackground: true, ...pdfOptions(path, scale) })

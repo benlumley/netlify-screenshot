@@ -2,7 +2,7 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { JSDOM } = require('jsdom')
 
-const { captureReadyCheck, frameFingerprint, hasNoSpinner } = require('./captureReady')
+const { captureReadyCheck, frameFingerprint, hasNoSpinner, captureSignalCheck } = require('./captureReady')
 
 // The predicate reads the global `document`; point it at a jsdom document.
 const setDom = (html) => {
@@ -115,4 +115,42 @@ test('hasNoSpinner reads the spinner count', () => {
     assert.equal(hasNoSpinner('3|0|2|4|500'), true)
     assert.equal(hasNoSpinner('0|1|0|0|39'), false)
     assert.equal(hasNoSpinner(''), false)
+})
+
+// --- captureSignalCheck (explicit front-end contract) ---
+test('signal: false when the frame element is absent', () => {
+    setDom('<div data-capture-ready="true">not the frame</div>')
+    assert.equal(captureSignalCheck('#frame'), false)
+})
+
+test('signal: false when the app has not set the attribute', () => {
+    // Fully rendered by the heuristic's standards, but no signal (older front end).
+    setDom('<div id="frame"><canvas></canvas><div class="top-ten-table"><div class="fromjs">x</div></div></div>')
+    assert.equal(captureSignalCheck('#frame'), false)
+})
+
+test('signal: true once the frame carries data-capture-ready="true"', () => {
+    setDom('<div id="frame" data-capture-ready="true"></div>')
+    assert.equal(captureSignalCheck('#frame'), true)
+})
+
+test('signal: only the exact value "true" counts', () => {
+    const doc = setDom('<div id="frame" data-capture-ready="false"></div>')
+    assert.equal(captureSignalCheck('#frame'), false)
+    doc.getElementById('frame').setAttribute('data-capture-ready', '')
+    assert.equal(captureSignalCheck('#frame'), false)
+})
+
+test('signal: a descendant carrying the attribute does not count', () => {
+    setDom('<div id="frame"><div data-capture-ready="true"></div></div>')
+    assert.equal(captureSignalCheck('#frame'), false)
+})
+
+test('signal: false again once the app clears it on returning to loading', () => {
+    const doc = setDom('<div id="frame"></div>')
+    const frame = doc.getElementById('frame')
+    frame.setAttribute('data-capture-ready', 'true')
+    assert.equal(captureSignalCheck('#frame'), true)
+    frame.removeAttribute('data-capture-ready')
+    assert.equal(captureSignalCheck('#frame'), false)
 })
