@@ -57,12 +57,11 @@ const deriveFilename = (reqPath, fallback = '2024-iiag.pdf') => {
 }
 
 // Prepend the cover PDF's pages in front of the rendered PDF's pages.
-// pdf-lib is required lazily so a coverless request never loads it.
+// `PDFDocument` is injected by the caller (see pdfScale.js for why a lazy
+// require here does not survive the function bundler).
 // Cover pages are normalised to the rendered page's dimensions so the merged
 // file has a uniform page size (covers should be authored A4 portrait).
-const mergeCover = async (renderedPdfBuffer, coverBuffer) => {
-    const { PDFDocument } = require('pdf-lib')
-
+const mergeCover = async (renderedPdfBuffer, coverBuffer, { PDFDocument }) => {
     const rendered = await PDFDocument.load(renderedPdfBuffer)
     const cover = await PDFDocument.load(coverBuffer)
     const out = await PDFDocument.create()

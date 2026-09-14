@@ -3,6 +3,9 @@ import { launchBrowser, closeBrowser } from "../shared/chromium.mjs"
 import { safeTimeout, requestHeaders, errorResponse } from "../shared/capture.mjs"
 import { isAllowedCoverUrl, deriveFilename, mergeCover } from "./pdfCover.js"
 import { scalePagesTo } from "./pdfScale.js"
+// Static import on purpose: the bundler traces node_modules from these, not
+// from `require()` calls inside the CJS helpers (see pdfScale.js).
+import { PDFDocument } from "pdf-lib"
 import { captureReadyCheck } from "./captureReady.js"
 import { httpCredentials } from "../shared/httpAuth.js"
 
@@ -139,7 +142,7 @@ export default async (req) => {
     logTime('pdf created')
 
     if (isDetailPage(path)) {
-        pdf = await scalePagesTo(pdf, { scale, width: a4.widthPt, height: a4.heightPt })
+        pdf = await scalePagesTo(pdf, { scale, width: a4.widthPt, height: a4.heightPt, PDFDocument })
         logTime('pdf scaled to A4')
     }
 
@@ -164,7 +167,7 @@ export default async (req) => {
             throw new Error(`cover fetch failed: ${coverResponse.status}`)
           }
           const coverBuffer = Buffer.from(await coverResponse.arrayBuffer())
-          const merged = await mergeCover(pdf, coverBuffer)
+          const merged = await mergeCover(pdf, coverBuffer, { PDFDocument })
 
           if (merged.length > maxCoveredBytes) {
             console.warn('merged pdf exceeds response cap; returning coverless')

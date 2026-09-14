@@ -9,10 +9,11 @@
 // this then scales the finished pages down to the real paper size. Text stays
 // text and vectors stay vectors — it is a single transform per page.
 //
-// pdf-lib is required lazily so the Data-page path never loads it.
-const scalePagesTo = async (pdfBuffer, { scale, width, height }) => {
-    const { PDFDocument } = require('pdf-lib')
-
+// `PDFDocument` is injected by the caller (print.mjs imports pdf-lib statically):
+// the v2 function bundler only ships node_modules it can trace from static
+// imports, and a `require('pdf-lib')` inside a CJS helper is not one of them —
+// it was missing at runtime ("Cannot find module 'pdf-lib'").
+const scalePagesTo = async (pdfBuffer, { scale, width, height, PDFDocument }) => {
     const doc = await PDFDocument.load(pdfBuffer)
     doc.getPages().forEach((page) => {
         page.scaleContent(scale, scale)

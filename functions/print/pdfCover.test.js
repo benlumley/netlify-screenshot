@@ -61,7 +61,7 @@ test('mergeCover: cover pages come first, then rendered pages', async () => {
     const cover = await makePdf(1)
     const rendered = await makePdf(2)
 
-    const merged = await mergeCover(rendered, cover)
+    const merged = await mergeCover(rendered, cover, { PDFDocument })
     const mergedDoc = await PDFDocument.load(merged)
 
     assert.equal(mergedDoc.getPageCount(), 3)
@@ -71,7 +71,7 @@ test('mergeCover: normalises a differently-sized cover to the rendered page size
     const cover = await makePdf(1, [200, 300]) // wrong size on purpose
     const rendered = await makePdf(1, A4)
 
-    const merged = await mergeCover(rendered, cover)
+    const merged = await mergeCover(rendered, cover, { PDFDocument })
     const mergedDoc = await PDFDocument.load(merged)
 
     const first = mergedDoc.getPage(0).getSize()

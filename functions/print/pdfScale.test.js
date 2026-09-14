@@ -4,7 +4,7 @@ const { PDFDocument, rgb } = require('pdf-lib')
 
 const { scalePagesTo } = require('./pdfScale')
 
-const A4 = { width: 595.28, height: 841.89 }
+const A4 = { width: 595.28, height: 841.89, PDFDocument }
 
 // A "big" page, as Chromium would print it at scale 1 on 1/0.625 A4 paper.
 const makeBigPdf = async (pageCount) => {
