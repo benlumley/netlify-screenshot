@@ -19,19 +19,19 @@ test('false when the frame element is absent', () => {
 })
 
 test('false while a loader spinner is present', () => {
-    setDom('<div id="frame"><img src="/img/loader.gif"><canvas></canvas></div>')
+    setDom('<div id="frame"><img src="/img/loader.gif"><canvas></canvas><div class="top-ten-table"></div></div>')
     assert.equal(captureReadyCheck('#frame', true), false)
 })
 
 test('print requires images loaded; screenshot does not', () => {
     // an <img> that has not loaded (naturalWidth 0)
-    setDom('<div id="frame"><img src="/flag.png"><canvas></canvas></div>')
+    setDom('<div id="frame"><img src="/flag.png"><canvas></canvas><div class="top-ten-table"></div></div>')
     assert.equal(captureReadyCheck('#frame', true), false) // print: blocked on the image
-    assert.equal(captureReadyCheck('#frame', false), true) // screenshot: image gate skipped, canvas present
+    assert.equal(captureReadyCheck('#frame', false), true) // screenshot: image gate skipped, content present
 })
 
 test('print ready once every image has loaded', () => {
-    const doc = setDom('<div id="frame"><img src="/flag.png"><canvas></canvas></div>')
+    const doc = setDom('<div id="frame"><img src="/flag.png"><canvas></canvas><div class="top-ten-table"></div></div>')
     const img = doc.querySelector('img')
     define(img, 'complete', true)
     define(img, 'naturalWidth', 24)
@@ -60,9 +60,19 @@ test('data container: ready on substantial text in a non-title child', () => {
 })
 
 // --- In-place detail-page <main> fallback (no such container) ---
-test('detail fallback: ready when a chart/table is present anywhere', () => {
-    setDom('<div id="frame"><header>chrome</header><table></table></div>')
+test('detail fallback: ready once a chart canvas AND the Scores/Trends grid are present', () => {
+    setDom('<div id="frame"><header>chrome</header><canvas></canvas><div class="top-ten-table"></div></div>')
     assert.equal(captureReadyCheck('#frame', true), true)
+})
+
+test('detail fallback: empty first-phase canvases without the grid are not ready', () => {
+    setDom('<div id="frame"><canvas></canvas><canvas></canvas></div>')
+    assert.equal(captureReadyCheck('#frame', true), false)
+})
+
+test('detail fallback: a stray svg/table alone is not ready', () => {
+    setDom('<div id="frame"><svg></svg><table></table></div>')
+    assert.equal(captureReadyCheck('#frame', true), false)
 })
 
 test('detail fallback: not ready with no chart and little text', () => {
@@ -83,8 +93,8 @@ test('fingerprint: empty when the frame is absent', () => {
 })
 
 test('fingerprint: counts canvases, spinners, tables and total elements', () => {
-    setDom('<div id="frame"><canvas></canvas><canvas></canvas><img src="/x/loader.gif"><table></table></div>')
-    assert.equal(frameFingerprint('#frame'), '2|1|1|4')
+    setDom('<div id="frame"><canvas></canvas><canvas></canvas><img src="/x/loader.gif"><table></table><div class="top-ten-table"></div></div>')
+    assert.equal(frameFingerprint('#frame'), '2|1|1|1|5')
 })
 
 test('fingerprint: changes when the frame re-renders', () => {
@@ -95,7 +105,7 @@ test('fingerprint: changes when the frame re-renders', () => {
 })
 
 test('hasNoSpinner reads the spinner count', () => {
-    assert.equal(hasNoSpinner('3|0|2|500'), true)
-    assert.equal(hasNoSpinner('0|1|0|39'), false)
+    assert.equal(hasNoSpinner('3|0|2|4|500'), true)
+    assert.equal(hasNoSpinner('0|1|0|0|39'), false)
     assert.equal(hasNoSpinner(''), false)
 })

@@ -41,11 +41,17 @@ function captureReadyCheck(captureSelector, requireImages) {
         })
     }
 
-    // In-place detail-page <main> frames have no such container. Wait for a
-    // rendered chart/table — detail pages always contain one — rather than
-    // settling on the surrounding chrome/hero text, which is present in the DOM
-    // before the charts have drawn (which would capture blank charts).
-    return Boolean(captureElement.querySelector('canvas, svg, table'))
+    // In-place detail-page <main> frames have no such container. The page
+    // renders in phases: the first two charts draw as empty canvases while the
+    // data is still being indexed, then everything drops back to spinners and
+    // is rebuilt. The Scores/Trends grid (.top-ten-table) only appears in that
+    // final phase — on every detail page type — so require it alongside a
+    // chart canvas rather than accepting any chart/table (which passed on the
+    // empty canvases and printed a page of spinners).
+    return (
+        Boolean(captureElement.querySelector('canvas')) &&
+        Boolean(captureElement.querySelector('.top-ten-table'))
+    )
 }
 
 // A cheap fingerprint of the captured element, used to wait until the page has
@@ -67,6 +73,7 @@ function frameFingerprint(captureSelector) {
         count('canvas'),
         count('img[src*="loader.gif"]'),
         count('table'),
+        count('.top-ten-table'),
         captureElement.querySelectorAll('*').length,
     ].join('|')
 }
