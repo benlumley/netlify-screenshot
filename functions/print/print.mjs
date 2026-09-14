@@ -6,7 +6,7 @@ import { scalePagesTo } from "./pdfScale.js"
 // Static import on purpose: the bundler traces node_modules from these, not
 // from `require()` calls inside the CJS helpers (see pdfScale.js).
 import { PDFDocument } from "pdf-lib"
-import { captureReadyCheck } from "./captureReady.js"
+import { captureReadyCheck, frameFingerprint, hasNoSpinner } from "./captureReady.js"
 import { httpCredentials } from "../shared/httpAuth.js"
 
 // Runtime API v2 function — the modern shape is required for the memory/vCPU
@@ -71,6 +71,8 @@ const maxage = 60 * 60 * 24 * 7
 const navigationTimeout = 18000
 const selectorTimeout = 10000
 const readyTimeout = 22000
+const settleInterval = 500
+const settleAttempts = 16
 const readyReserve = 7000
 
 const userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
@@ -83,7 +85,27 @@ const waitForCaptureReady = async (page, selector, startedAt) => {
     await page.waitForFunction(captureReadyCheck, { timeout: safeTimeout(startedAt, readyTimeout, readyReserve) }, selector, true)
 
     await page.evaluateHandle('document.fonts.ready')
-    await page.waitForTimeout(500)
+
+    // Then wait for the frame to STOP changing. The detail pages load in phases
+    // (first charts draw, then a later state update drops everything back to
+    // spinners and rebuilds it), so a fixed delay printed the intermediate state
+    // on slower runs. Two identical fingerprints 500ms apart with no spinner,
+    // and the readiness predicate still true, means the page has settled.
+    // Bounded by the remaining Lambda budget; falls through to print if it
+    // never settles rather than failing the request.
+    let previous = await page.evaluate(frameFingerprint, selector)
+    for (let attempt = 0; attempt < settleAttempts; attempt += 1) {
+        if (safeTimeout(startedAt, settleInterval, readyReserve) <= 1000) {
+            break
+        }
+        await page.waitForTimeout(settleInterval)
+        const current = await page.evaluate(frameFingerprint, selector)
+        const ready = await page.evaluate(captureReadyCheck, selector, true)
+        if (current === previous && hasNoSpinner(current) && ready) {
+            break
+        }
+        previous = current
+    }
 }
 
 export default async (req) => {

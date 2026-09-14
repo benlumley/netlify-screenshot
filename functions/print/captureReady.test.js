@@ -2,7 +2,7 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { JSDOM } = require('jsdom')
 
-const { captureReadyCheck } = require('./captureReady')
+const { captureReadyCheck, frameFingerprint, hasNoSpinner } = require('./captureReady')
 
 // The predicate reads the global `document`; point it at a jsdom document.
 const setDom = (html) => {
@@ -74,4 +74,28 @@ test('detail fallback: chrome/hero text alone does not mark it ready (chart must
     const doc = setDom('<div id="frame"><div id="hero"></div></div>')
     define(doc.getElementById('hero'), 'innerText', 'x'.repeat(200))
     assert.equal(captureReadyCheck('#frame', true), false)
+})
+
+// --- frameFingerprint / hasNoSpinner ---
+test('fingerprint: empty when the frame is absent', () => {
+    setDom('<div>nothing</div>')
+    assert.equal(frameFingerprint('#frame'), '')
+})
+
+test('fingerprint: counts canvases, spinners, tables and total elements', () => {
+    setDom('<div id="frame"><canvas></canvas><canvas></canvas><img src="/x/loader.gif"><table></table></div>')
+    assert.equal(frameFingerprint('#frame'), '2|1|1|4')
+})
+
+test('fingerprint: changes when the frame re-renders', () => {
+    const doc = setDom('<div id="frame"><canvas></canvas></div>')
+    const before = frameFingerprint('#frame')
+    doc.getElementById('frame').appendChild(doc.createElement('table'))
+    assert.notEqual(frameFingerprint('#frame'), before)
+})
+
+test('hasNoSpinner reads the spinner count', () => {
+    assert.equal(hasNoSpinner('3|0|2|500'), true)
+    assert.equal(hasNoSpinner('0|1|0|39'), false)
+    assert.equal(hasNoSpinner(''), false)
 })

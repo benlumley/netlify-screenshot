@@ -48,4 +48,30 @@ function captureReadyCheck(captureSelector, requireImages) {
     return Boolean(captureElement.querySelector('canvas, svg, table'))
 }
 
-module.exports = { captureReadyCheck }
+// A cheap fingerprint of the captured element, used to wait until the page has
+// STOPPED changing after captureReadyCheck first passes. The detail pages load
+// in phases: the first charts draw, then a later state update drops them back
+// to loading spinners and rebuilds everything a second later. A fixed settle
+// delay printed that intermediate state on slower runs. Same constraints as
+// captureReadyCheck: self-contained, serialized into the browser.
+function frameFingerprint(captureSelector) {
+    const captureElement = document.querySelector(captureSelector)
+
+    if (!captureElement) {
+        return ''
+    }
+
+    const count = (selector) => captureElement.querySelectorAll(selector).length
+
+    return [
+        count('canvas'),
+        count('img[src*="loader.gif"]'),
+        count('table'),
+        captureElement.querySelectorAll('*').length,
+    ].join('|')
+}
+
+// True when a fingerprint describes a frame with no loader spinners.
+const hasNoSpinner = (fingerprint) => String(fingerprint).split('|')[1] === '0'
+
+module.exports = { captureReadyCheck, frameFingerprint, hasNoSpinner }
