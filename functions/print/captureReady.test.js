@@ -2,7 +2,7 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { JSDOM } = require('jsdom')
 
-const { captureReadyCheck, frameFingerprint, hasNoSpinner, captureSignalCheck } = require('./captureReady')
+const { captureReadyCheck, frameFingerprint, hasNoSpinner, captureSignalCheck, captureImagesLoaded } = require('./captureReady')
 
 // The predicate reads the global `document`; point it at a jsdom document.
 const setDom = (html) => {
@@ -153,4 +153,34 @@ test('signal: false again once the app clears it on returning to loading', () =>
     assert.equal(captureSignalCheck('#frame'), true)
     frame.removeAttribute('data-capture-ready')
     assert.equal(captureSignalCheck('#frame'), false)
+})
+
+test('signal: Data table view — raised on the frame, not the captured #mifDataTable inside it', () => {
+    setDom('<div id="screenshotPdfFrame" data-capture-ready="true"><div class="uk-container"><table id="mifDataTable"></table></div></div>')
+    assert.equal(captureSignalCheck('#screenshotPdfFrame'), true)
+    assert.equal(captureSignalCheck('#mifDataTable'), false) // why the signal is checked on the frame
+})
+
+// --- captureImagesLoaded ---
+test('images: false when the element is absent', () => {
+    setDom('<div>nothing</div>')
+    assert.equal(captureImagesLoaded('#frame'), false)
+})
+
+test('images: true with no images', () => {
+    setDom('<div id="frame"><canvas></canvas></div>')
+    assert.equal(captureImagesLoaded('#frame'), true)
+})
+
+test('images: false until every image has loaded', () => {
+    const doc = setDom('<div id="frame"><img src="/a.png"><img src="/b.png"></div>')
+    const [a, b] = doc.querySelectorAll('img')
+    define(a, 'complete', true)
+    define(a, 'naturalWidth', 10)
+    assert.equal(captureImagesLoaded('#frame'), false)
+    define(b, 'complete', true)
+    define(b, 'naturalWidth', 0) // complete but broken
+    assert.equal(captureImagesLoaded('#frame'), false)
+    define(b, 'naturalWidth', 10)
+    assert.equal(captureImagesLoaded('#frame'), true)
 })

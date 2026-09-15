@@ -3,6 +3,7 @@ import { launchBrowser, closeBrowser } from "../shared/chromium.mjs"
 import { safeTimeout, requestHeaders, errorResponse } from "../shared/capture.mjs"
 import { captureReadyCheck } from "../print/captureReady.js"
 import { httpCredentials } from "../shared/httpAuth.js"
+import { readyReserve, readyTimeout, selectorTimeout, signalSelectorFor, waitForCaptureReady } from "../shared/captureWait.mjs"
 
 // Runtime API v2 function — the modern shape is required for the memory/vCPU
 // configuration below to take effect (v1 handler functions silently keep the
@@ -15,14 +16,12 @@ const width = 1440
 const height = 1200
 const maxage = 60 * 60 * 24 * 7
 const navigationTimeout = 18000
-const selectorTimeout = 10000
-const readyTimeout = 22000
-const readyReserve = 7000
 
 const userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
 
-const waitForCaptureReady = async (page, selector, startedAt) => {
-    await page.waitForSelector(selector, { timeout: safeTimeout(startedAt, selectorTimeout) })
+// The fallback for front-end builds that don't raise the capture-ready signal
+// (see waitForCaptureReady in shared/captureWait.mjs).
+const waitForHeuristicReady = async (page, selector, startedAt) => {
     // The detail pages index ten years of level-5 data before rendering,
     // which far outlasts 10s on Lambda CPU — give the readiness wait all
     // the remaining budget minus the reserve needed to capture the PNG.
@@ -73,8 +72,15 @@ export default async (req) => {
         throw new Error(`Target returned ${response.status()} — check HTTP_AUTH_USER/HTTP_AUTH_PASS`)
     }
     logTime('dom loaded')
-    await waitForCaptureReady(page, selector, startedAt)
-    logTime('capture ready')
+    // The PNG path has never gated on images; the signal path keeps that.
+    const readyVia = await waitForCaptureReady(page, {
+        captureSelector: selector,
+        signalSelector: signalSelectorFor(path),
+        requireImages: false,
+        startedAt,
+        waitForHeuristic: waitForHeuristicReady,
+    })
+    logTime(`capture ready (${readyVia})`)
     const frame = await page.$(selector);
     const screenshot = await frame.screenshot({
         type: 'png',

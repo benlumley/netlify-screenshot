@@ -96,4 +96,18 @@ function captureSignalCheck(captureSelector) {
     return Boolean(captureElement) && captureElement.getAttribute('data-capture-ready') === 'true'
 }
 
-module.exports = { captureReadyCheck, frameFingerprint, hasNoSpinner, captureSignalCheck }
+// True once every image in the captured element has loaded — the image gate
+// from captureReadyCheck on its own. The capture-ready signal covers the app's
+// data, spinners and charts, not image downloads, so the signal path checks
+// this separately before printing. Same constraints as captureReadyCheck.
+function captureImagesLoaded(captureSelector) {
+    const captureElement = document.querySelector(captureSelector)
+
+    if (!captureElement) {
+        return false
+    }
+
+    return Array.from(captureElement.querySelectorAll('img')).every((image) => image.complete && image.naturalWidth > 0)
+}
+
+module.exports = { captureReadyCheck, frameFingerprint, hasNoSpinner, captureSignalCheck, captureImagesLoaded }
