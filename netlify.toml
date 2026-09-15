@@ -7,7 +7,7 @@
   HTTP_AUTH_USER = "HTTP basic auth username for the target site (optional)"
   HTTP_AUTH_PASS = "HTTP basic auth password for the target site (optional)"
   IIAG_YEAR = "IIAG edition year used in download filenames, e.g. 2026-iiag.png (optional, defaults to 2026)"
-  COVER_ALLOWED_HOSTS ="Extra comma-separated hosts allowed for the ?cover= PDF fetch (assets.iiag.online is always allowed). For local/preview cover testing only."
+  COVER_ALLOWED_HOSTS = "Extra comma-separated hosts allowed for the ?cover= PDF fetch (assets.iiag.online is always allowed). For local/preview cover testing only."
 
 [[redirects]]
   from = "/print/*"
