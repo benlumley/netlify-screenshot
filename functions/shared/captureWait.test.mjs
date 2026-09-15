@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { JSDOM } from 'jsdom'
 
-import { signalSelectorFor, waitForCaptureReady } from './captureWait.mjs'
+import { captureSelector, signalsCaptureReady, waitForCaptureReady } from './captureWait.mjs'
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -42,8 +42,8 @@ const fakePage = (overrides = {}) => ({
 
 // Records whether the handler's fallback ran, and for which selector.
 const heuristicSpy = () => {
-    const spy = async (page, captureSelector) => {
-        spy.calls.push(captureSelector)
+    const spy = async (page, selector) => {
+        spy.calls.push(selector)
     }
     spy.calls = []
     return spy
@@ -53,68 +53,61 @@ const heuristicSpy = () => {
 // 1.5s (it ends 1s before the heuristic's deadline) — keeps fallback tests fast.
 const lateStart = () => Date.now() - 16500
 
-const frame = '#screenshotPdfFrame'
-const detailFrame = (attrs = '') => `<main id="screenshotPdfFrame" ${attrs}><canvas></canvas></main>`
+const frame = (attrs = '', content = '<canvas></canvas>') => `<main id="screenshotPdfFrame" ${attrs}>${content}</main>`
 
-test('signalSelectorFor: detail pages and the Data page signal on the frame', () => {
+test('captures the export frame', () => {
+    assert.equal(captureSelector, '#screenshotPdfFrame')
+})
+
+test('signalsCaptureReady: detail pages and the Data page signal', () => {
     for (const path of ['/locations/ao.html', '/fr/locations/ao.html', '/measures/governance.html', '/data.html', '/pt/data.html']) {
-        assert.equal(signalSelectorFor(path), frame, path)
+        assert.equal(signalsCaptureReady(path), true, path)
     }
 })
 
-test('signalSelectorFor: other pages never signal', () => {
+test('signalsCaptureReady: other pages never signal', () => {
     for (const path of ['/', '/index.html', '/embed.html', '/database.html', '/metadata.html', '/locations.html']) {
-        assert.equal(signalSelectorFor(path), null, path)
+        assert.equal(signalsCaptureReady(path), false, path)
     }
 })
 
 test('signal raised: returns "signal" without running the heuristic', async () => {
-    setDom(detailFrame('data-capture-ready="true"'))
+    setDom(frame('data-capture-ready="true"'))
     const heuristic = heuristicSpy()
     const via = await waitForCaptureReady(fakePage(), {
-        captureSelector: frame, signalSelector: frame, requireImages: true, startedAt: Date.now(), waitForHeuristic: heuristic,
+        signals: true, requireImages: true, startedAt: Date.now(), waitForHeuristic: heuristic,
     })
     assert.equal(via, 'signal')
     assert.deepEqual(heuristic.calls, [])
 })
 
-test('Data table view: waits on #mifDataTable but reads the signal from the ancestor frame', async () => {
-    setDom('<div id="screenshotPdfFrame" data-capture-ready="true"><div class="uk-container"><table id="mifDataTable"></table></div></div>')
-    const heuristic = heuristicSpy()
-    const via = await waitForCaptureReady(fakePage(), {
-        captureSelector: '#mifDataTable', signalSelector: signalSelectorFor('/data.html'), requireImages: true, startedAt: Date.now(), waitForHeuristic: heuristic,
-    })
-    assert.equal(via, 'signal')
-    assert.deepEqual(heuristic.calls, [])
-})
-
-test('no signal within the grace period: falls back to the heuristic on the capture selector', async () => {
-    setDom('<div id="screenshotPdfFrame"><table id="mifDataTable"></table></div>')
+test('no signal within the grace period: falls back to the heuristic on the frame', async () => {
+    setDom(frame())
     const heuristic = heuristicSpy()
     const began = Date.now()
     const via = await waitForCaptureReady(fakePage(), {
-        captureSelector: '#mifDataTable', signalSelector: frame, requireImages: true, startedAt: lateStart(), waitForHeuristic: heuristic,
+        signals: true, requireImages: true, startedAt: lateStart(), waitForHeuristic: heuristic,
     })
     assert.equal(via, 'heuristic')
-    assert.deepEqual(heuristic.calls, ['#mifDataTable'])
+    assert.deepEqual(heuristic.calls, [captureSelector])
     assert.ok(Date.now() - began >= 1400, 'waited out the grace period first')
 })
 
 test('pages that never signal go straight to the heuristic', async () => {
-    setDom(detailFrame())
+    setDom(frame())
     const heuristic = heuristicSpy()
     const began = Date.now()
     const via = await waitForCaptureReady(fakePage(), {
-        captureSelector: frame, signalSelector: null, requireImages: true, startedAt: Date.now(), waitForHeuristic: heuristic,
+        signals: false, requireImages: true, startedAt: Date.now(), waitForHeuristic: heuristic,
     })
     assert.equal(via, 'heuristic')
-    assert.deepEqual(heuristic.calls, [frame])
+    assert.deepEqual(heuristic.calls, [captureSelector])
     assert.ok(Date.now() - began < 300, 'no grace period')
 })
 
 test('signal cleared during the settle: waits for it to be raised again', async () => {
-    const doc = setDom(detailFrame('data-capture-ready="true"'))
-    const el = doc.querySelector(frame)
+    const doc = setDom(frame('data-capture-ready="true"'))
+    const el = doc.querySelector(captureSelector)
     setTimeout(() => el.removeAttribute('data-capture-ready'), 100)
     setTimeout(() => {
         el.appendChild(doc.createElement('table'))
@@ -122,14 +115,14 @@ test('signal cleared during the settle: waits for it to be raised again', async 
     }, 1200)
     const began = Date.now()
     const via = await waitForCaptureReady(fakePage(), {
-        captureSelector: frame, signalSelector: frame, requireImages: false, startedAt: Date.now(), waitForHeuristic: heuristicSpy(),
+        signals: true, requireImages: false, startedAt: Date.now(), waitForHeuristic: heuristicSpy(),
     })
     assert.equal(via, 'signal')
     assert.ok(Date.now() - began >= 1200, 'did not capture while the app was loading')
 })
 
 test('signal raised but an image still loading: print waits for it, the PNG path does not', async () => {
-    const doc = setDom('<main id="screenshotPdfFrame" data-capture-ready="true"><img src="/flag.png"></main>')
+    const doc = setDom(frame('data-capture-ready="true"', '<img src="/flag.png">'))
     const img = doc.querySelector('img')
     setTimeout(() => {
         define(img, 'complete', true)
@@ -138,20 +131,20 @@ test('signal raised but an image still loading: print waits for it, the PNG path
 
     let began = Date.now()
     await waitForCaptureReady(fakePage(), {
-        captureSelector: frame, signalSelector: frame, requireImages: false, startedAt: Date.now(), waitForHeuristic: heuristicSpy(),
+        signals: true, requireImages: false, startedAt: Date.now(), waitForHeuristic: heuristicSpy(),
     })
     assert.ok(Date.now() - began < 1000, 'PNG path does not gate on images')
 
     began = Date.now()
     const via = await waitForCaptureReady(fakePage(), {
-        captureSelector: frame, signalSelector: frame, requireImages: true, startedAt: Date.now(), waitForHeuristic: heuristicSpy(),
+        signals: true, requireImages: true, startedAt: Date.now(), waitForHeuristic: heuristicSpy(),
     })
     assert.equal(via, 'signal')
     assert.equal(img.naturalWidth, 24, 'printed only after the image loaded')
 })
 
 test('errors other than a timeout during the signal wait propagate', async () => {
-    setDom(detailFrame())
+    setDom(frame())
     const page = fakePage({
         waitForFunction: async () => {
             throw new Error('Execution context was destroyed')
@@ -159,7 +152,7 @@ test('errors other than a timeout during the signal wait propagate', async () =>
     })
     await assert.rejects(
         waitForCaptureReady(page, {
-            captureSelector: frame, signalSelector: frame, requireImages: true, startedAt: Date.now(), waitForHeuristic: heuristicSpy(),
+            signals: true, requireImages: true, startedAt: Date.now(), waitForHeuristic: heuristicSpy(),
         }),
         /Execution context was destroyed/,
     )

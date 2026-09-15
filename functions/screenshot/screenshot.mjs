@@ -3,7 +3,14 @@ import { launchBrowser, closeBrowser } from "../shared/chromium.mjs"
 import { safeTimeout, requestHeaders, errorResponse } from "../shared/capture.mjs"
 import { captureReadyCheck } from "../print/captureReady.js"
 import { httpCredentials } from "../shared/httpAuth.js"
-import { readyReserve, readyTimeout, selectorTimeout, signalSelectorFor, waitForCaptureReady } from "../shared/captureWait.mjs"
+import {
+    captureSelector,
+    readyReserve,
+    readyTimeout,
+    selectorTimeout,
+    signalsCaptureReady,
+    waitForCaptureReady,
+} from "../shared/captureWait.mjs"
 
 // Runtime API v2 function — the modern shape is required for the memory/vCPU
 // configuration below to take effect (v1 handler functions silently keep the
@@ -47,7 +54,6 @@ export default async (req) => {
         cookieAccept: 1,
         swn_dismiss: 1,
     }
-    const selector = queryStringParameters.view === 'table' ? '#mifDataTable' : '#screenshotPdfFrame'
     const url = `${process.env.BASE_URL}${path}${qs.stringify(queryStringParameters, { addQueryPrefix: true })}`
 
     browser = await launchBrowser()
@@ -74,14 +80,13 @@ export default async (req) => {
     logTime('dom loaded')
     // The PNG path has never gated on images; the signal path keeps that.
     const readyVia = await waitForCaptureReady(page, {
-        captureSelector: selector,
-        signalSelector: signalSelectorFor(path),
+        signals: signalsCaptureReady(path),
         requireImages: false,
         startedAt,
         waitForHeuristic: waitForHeuristicReady,
     })
     logTime(`capture ready (${readyVia})`)
-    const frame = await page.$(selector);
+    const frame = await page.$(captureSelector);
     const screenshot = await frame.screenshot({
         type: 'png',
         omitBackground: true,

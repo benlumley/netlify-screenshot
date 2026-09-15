@@ -13,7 +13,7 @@ import {
     selectorTimeout,
     settleAttempts,
     settleInterval,
-    signalSelectorFor,
+    signalsCaptureReady,
     waitForCaptureReady,
 } from "../shared/captureWait.mjs"
 import { httpCredentials } from "../shared/httpAuth.js"
@@ -133,7 +133,6 @@ export default async (req) => {
         swn_dismiss: 1,
     }
     const filename = deriveFilename(path)
-    const selector = queryStringParameters.view === 'table' ? '#mifDataTable' : '#screenshotPdfFrame'
     const url = `${process.env.BASE_URL}${path}${qs.stringify(queryStringParameters, { addQueryPrefix: true })}`
     console.log(url);
 
@@ -160,10 +159,8 @@ export default async (req) => {
         throw new Error(`Target returned ${response.status()} — check HTTP_AUTH_USER/HTTP_AUTH_PASS`)
     }
     logTime('dom loaded')
-    console.log(selector);
     const readyVia = await waitForCaptureReady(page, {
-        captureSelector: selector,
-        signalSelector: signalSelectorFor(path),
+        signals: signalsCaptureReady(path),
         requireImages: true,
         startedAt,
         waitForHeuristic: waitForHeuristicReady,

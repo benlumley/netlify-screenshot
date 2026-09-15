@@ -155,10 +155,11 @@ test('signal: false again once the app clears it on returning to loading', () =>
     assert.equal(captureSignalCheck('#frame'), false)
 })
 
-test('signal: Data table view — raised on the frame, not the captured #mifDataTable inside it', () => {
-    setDom('<div id="screenshotPdfFrame" data-capture-ready="true"><div class="uk-container"><table id="mifDataTable"></table></div></div>')
-    assert.equal(captureSignalCheck('#screenshotPdfFrame'), true)
-    assert.equal(captureSignalCheck('#mifDataTable'), false) // why the signal is checked on the frame
+test('data container: a Data table view frame is ready once a non-title child holds the table', () => {
+    setDom(
+        '<div id="screenshotPdfFrame"><div class="uk-container uk-margin-top uk-margin-bottom"><h3>Title</h3><div><div class="table_scroll"><table id="mifDataTable"></table></div></div></div></div>',
+    )
+    assert.equal(captureReadyCheck('#screenshotPdfFrame', true), true)
 })
 
 // --- captureImagesLoaded ---
