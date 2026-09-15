@@ -1,6 +1,8 @@
 // Pure, Chromium-free helpers for the cover-page feature.
 // Kept separate from the handler so the URL/filename/merge logic is unit-testable.
 
+const { iiagYear } = require('../shared/iiagYear')
+
 const DEFAULT_ALLOWED_HOSTS = ['assets.iiag.online']
 
 // Prod allows only the assets host. Extra hosts can be permitted via the
@@ -27,10 +29,11 @@ const isAllowedCoverUrl = (urlString, hosts = allowedHosts()) => {
 }
 
 // Derive a meaningful download filename from the (already stripped) request path,
-// e.g. "/locations/nga" -> "2024-IIAG-profile-nga.pdf". Groups live under
+// e.g. "/locations/nga" -> "2026-IIAG-profile-nga.pdf". Groups live under
 // /locations/<slug> too, so they also get the profile name. Anything else
-// (e.g. the Data page) keeps the generic name.
-const deriveFilename = (reqPath, fallback = '2024-iiag.pdf') => {
+// (e.g. the Data page) keeps the generic name. The year comes from IIAG_YEAR.
+const deriveFilename = (reqPath, year = iiagYear()) => {
+    const fallback = `${year}-iiag.pdf`
     const parts = String(reqPath || '')
         .replace(/^\/+|\/+$/g, '')
         .split('/')
@@ -53,7 +56,7 @@ const deriveFilename = (reqPath, fallback = '2024-iiag.pdf') => {
         return fallback
     }
 
-    return type === 'locations' ? `2024-IIAG-profile-${slug}.pdf` : `2024-IIAG-measure-${slug}.pdf`
+    return type === 'locations' ? `${year}-IIAG-profile-${slug}.pdf` : `${year}-IIAG-measure-${slug}.pdf`
 }
 
 // Prepend the cover PDF's pages in front of the rendered PDF's pages.

@@ -33,28 +33,51 @@ test('isAllowedCoverUrl: honours an extra allowlisted host', () => {
 })
 
 test('deriveFilename: locations and groups get the profile name', () => {
-    assert.equal(deriveFilename('/locations/nga'), '2024-IIAG-profile-nga.pdf')
-    assert.equal(deriveFilename('/locations/east-africa'), '2024-IIAG-profile-east-africa.pdf')
+    assert.equal(deriveFilename('/locations/nga', '2026'), '2026-IIAG-profile-nga.pdf')
+    assert.equal(deriveFilename('/locations/east-africa', '2026'), '2026-IIAG-profile-east-africa.pdf')
 })
 
 test('deriveFilename: measures get the measure name', () => {
-    assert.equal(deriveFilename('/measures/rol'), '2024-IIAG-measure-rol.pdf')
+    assert.equal(deriveFilename('/measures/rol', '2026'), '2026-IIAG-measure-rol.pdf')
 })
 
 test('deriveFilename: strips the .html extension', () => {
-    assert.equal(deriveFilename('/locations/nga.html'), '2024-IIAG-profile-nga.pdf')
-    assert.equal(deriveFilename('/measures/rol.html'), '2024-IIAG-measure-rol.pdf')
+    assert.equal(deriveFilename('/locations/nga.html', '2026'), '2026-IIAG-profile-nga.pdf')
+    assert.equal(deriveFilename('/measures/rol.html', '2026'), '2026-IIAG-measure-rol.pdf')
 })
 
 test('deriveFilename: handles a language prefix', () => {
-    assert.equal(deriveFilename('/fr/locations/nga.html'), '2024-IIAG-profile-nga.pdf')
-    assert.equal(deriveFilename('/pt/measures/rol.html'), '2024-IIAG-measure-rol.pdf')
+    assert.equal(deriveFilename('/fr/locations/nga.html', '2026'), '2026-IIAG-profile-nga.pdf')
+    assert.equal(deriveFilename('/pt/measures/rol.html', '2026'), '2026-IIAG-measure-rol.pdf')
 })
 
 test('deriveFilename: unknown paths keep the generic fallback; slug sanitised', () => {
-    assert.equal(deriveFilename('/data.html'), '2024-iiag.pdf')
-    assert.equal(deriveFilename(''), '2024-iiag.pdf')
-    assert.equal(deriveFilename('/measures/a!@#'), '2024-IIAG-measure-a.pdf')
+    assert.equal(deriveFilename('/data.html', '2026'), '2026-iiag.pdf')
+    assert.equal(deriveFilename('', '2026'), '2026-iiag.pdf')
+    assert.equal(deriveFilename('/measures/a!@#', '2026'), '2026-IIAG-measure-a.pdf')
+})
+
+test('deriveFilename: stamps the given year on every name', () => {
+    assert.equal(deriveFilename('/locations/nga', '2028'), '2028-IIAG-profile-nga.pdf')
+    assert.equal(deriveFilename('/measures/rol', '2028'), '2028-IIAG-measure-rol.pdf')
+    assert.equal(deriveFilename('/data.html', '2028'), '2028-iiag.pdf')
+})
+
+test('deriveFilename: defaults the year from IIAG_YEAR', (t) => {
+    const original = process.env.IIAG_YEAR
+    t.after(() => {
+        if (original === undefined) {
+            delete process.env.IIAG_YEAR
+        } else {
+            process.env.IIAG_YEAR = original
+        }
+    })
+
+    process.env.IIAG_YEAR = '2030'
+    assert.equal(deriveFilename('/locations/nga'), '2030-IIAG-profile-nga.pdf')
+
+    delete process.env.IIAG_YEAR
+    assert.equal(deriveFilename('/data.html'), '2026-iiag.pdf')
 })
 
 test('mergeCover: cover pages come first, then rendered pages', async () => {
