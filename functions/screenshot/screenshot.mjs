@@ -3,6 +3,7 @@ import { launchBrowser, closeBrowser } from "../shared/chromium.mjs"
 import { safeTimeout, requestHeaders, errorResponse } from "../shared/capture.mjs"
 import { captureReadyCheck } from "../print/captureReady.js"
 import { httpCredentials } from "../shared/httpAuth.js"
+import { iiagYear } from "../shared/iiagYear.js"
 import {
     captureSelector,
     readyReserve,
@@ -98,7 +99,7 @@ export default async (req) => {
         headers: {
             "Cache-Control": `public, max-age=${maxage}`,
             "Content-Type": "image/png",
-            "Content-Disposition": "attachment; filename=2024-iiag.png",
+            "Content-Disposition": `attachment; filename=${iiagYear()}-iiag.png`,
             "Expires": new Date(Date.now() + maxage * 1000).toUTCString(),
         },
     })

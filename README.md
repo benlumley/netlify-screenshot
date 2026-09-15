@@ -23,6 +23,8 @@ https://{site-name}.netlify.app/screenshot/**/* -> {BASE_URL}/**/*
 
 If you want to change the `BASE_URL` edit the site's environment variables from `Site Settings > Build & deploy > Environment`, the value should be the root domain of your website e.g. `https://example.com`.
 
+Download filenames are prefixed with the IIAG edition year (e.g. `2026-iiag.png`, `2026-IIAG-profile-nga.pdf`). Set `IIAG_YEAR` in the same place to change it for a new edition; it defaults to `2026`. Like any env change, it only reaches the functions after a redeploy.
+
 
 Usage
 -----
