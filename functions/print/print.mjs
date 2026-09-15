@@ -3,10 +3,20 @@ import { launchBrowser, closeBrowser } from "../shared/chromium.mjs"
 import { safeTimeout, requestHeaders, errorResponse } from "../shared/capture.mjs"
 import { isAllowedCoverUrl, deriveFilename, mergeCover } from "./pdfCover.js"
 import { scalePagesTo } from "./pdfScale.js"
+import { a4, pdfOptions, renderSettings } from "./pdfLayout.js"
 // Static import on purpose: the bundler traces node_modules from these, not
 // from `require()` calls inside the CJS helpers (see pdfScale.js).
 import { PDFDocument } from "pdf-lib"
 import { captureReadyCheck, frameFingerprint, hasNoSpinner } from "./captureReady.js"
+import {
+    readyReserve,
+    readyTimeout,
+    selectorTimeout,
+    settleAttempts,
+    settleInterval,
+    signalsCaptureReady,
+    waitForCaptureReady,
+} from "../shared/captureWait.mjs"
 import { httpCredentials } from "../shared/httpAuth.js"
 
 // Runtime API v2 function — the modern shape is required for the memory/vCPU
@@ -28,57 +38,14 @@ const coverFetchTimeout = 8000
 
 const height = 1200
 
-// 29pt on every side, per the design guide for the profile booklets (InDesign
-// "29 px" = 29pt). Puppeteer has no pt unit, hence inches. Explicit A4 because
-// Chrome's "A4" preset is 0.1% oversize.
-const pageMarginPt = 29
-const a4 = { widthMm: 210, heightMm: 297, widthPt: (210 / 25.4) * 72, heightPt: (297 / 25.4) * 72 }
-
-// The measure/location/group profile PDFs render 1.25x larger than the
-// Data-page export so their type and boxes match the printed report design:
-// 1146px x 0.625 = 716px = A4 width minus the two 29pt margins, so the content
-// still fills the page exactly. The Data page keeps its original 1440 x 0.5.
-const isDetailPage = (path) => /(^|\/)(locations|measures)\//.test(path)
-const renderSettings = (path) =>
-    isDetailPage(path) ? { width: 1146, scale: 0.625 } : { width: 1440, scale: 0.5 }
-
-// Chromium's printToPDF `scale` shrinks the layout but evaluates media queries
-// against the unscaled paper width, so a scaled A4 print gets the site's mobile
-// breakpoints. For the detail pages we instead print at scale 1 onto paper
-// 1/scale times A4 (so layout and breakpoints agree at 1146px) and shrink the
-// finished pages to A4 with pdf-lib (see pdfScale.js). The Data page keeps the
-// plain scaled print it has always had.
-const pdfOptions = (path, scale) => {
-    if (isDetailPage(path)) {
-        const margin = `${pageMarginPt / 72 / scale}in`
-        return {
-            width: `${a4.widthMm / scale}mm`,
-            height: `${a4.heightMm / scale}mm`,
-            scale: 1,
-            margin: { top: margin, right: margin, bottom: margin, left: margin },
-        }
-    }
-    const margin = `${pageMarginPt / 72}in`
-    return {
-        width: `${a4.widthMm}mm`,
-        height: `${a4.heightMm}mm`,
-        scale,
-        margin: { top: margin, right: margin, bottom: margin, left: margin },
-    }
-}
-
 const maxage = 60 * 60 * 24 * 7
 const navigationTimeout = 18000
-const selectorTimeout = 10000
-const readyTimeout = 22000
-const settleInterval = 500
-const settleAttempts = 16
-const readyReserve = 7000
 
 const userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
 
-const waitForCaptureReady = async (page, selector, startedAt) => {
-    await page.waitForSelector(selector, { timeout: safeTimeout(startedAt, selectorTimeout) })
+// The fallback for front-end builds that don't raise the capture-ready signal
+// (see waitForCaptureReady in shared/captureWait.mjs).
+const waitForHeuristicReady = async (page, selector, startedAt) => {
     // The detail pages index ten years of level-5 data before rendering,
     // which far outlasts 10s on Lambda CPU — give the readiness wait all
     // the remaining budget minus the reserve needed to produce the PDF.
@@ -128,7 +95,6 @@ export default async (req) => {
         swn_dismiss: 1,
     }
     const filename = deriveFilename(path)
-    const selector = queryStringParameters.view === 'table' ? '#mifDataTable' : '#screenshotPdfFrame'
     const url = `${process.env.BASE_URL}${path}${qs.stringify(queryStringParameters, { addQueryPrefix: true })}`
     console.log(url);
 
@@ -155,18 +121,20 @@ export default async (req) => {
         throw new Error(`Target returned ${response.status()} — check HTTP_AUTH_USER/HTTP_AUTH_PASS`)
     }
     logTime('dom loaded')
-    console.log(selector);
-    await waitForCaptureReady(page, selector, startedAt)
-    logTime('capture ready')
+    const readyVia = await waitForCaptureReady(page, {
+        signals: signalsCaptureReady(path),
+        requireImages: true,
+        startedAt,
+        waitForHeuristic: waitForHeuristicReady,
+    })
+    logTime(`capture ready (${readyVia})`)
 
     await page.emulateMediaType('screen');
-    let pdf = await page.pdf({ printBackground: true, ...pdfOptions(path, scale) })
+    const printed = await page.pdf({ printBackground: true, ...pdfOptions(scale) })
     logTime('pdf created')
 
-    if (isDetailPage(path)) {
-        pdf = await scalePagesTo(pdf, { scale, width: a4.widthPt, height: a4.heightPt, PDFDocument })
-        logTime('pdf scaled to A4')
-    }
+    const pdf = await scalePagesTo(printed, { scale, width: a4.widthPt, height: a4.heightPt, PDFDocument })
+    logTime('pdf scaled to A4')
 
   // Prepend the cover if one was requested. Any failure here degrades to the
   // coverless PDF (Principle 4) — it must never turn into a hard error, so the

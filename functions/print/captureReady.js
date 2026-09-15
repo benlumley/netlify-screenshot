@@ -83,4 +83,31 @@ function frameFingerprint(captureSelector) {
 // True when a fingerprint describes a frame with no loader spinners.
 const hasNoSpinner = (fingerprint) => String(fingerprint).split('|')[1] === '0'
 
-module.exports = { captureReadyCheck, frameFingerprint, hasNoSpinner }
+// The explicit readiness contract with the front end: once a detail page has
+// fully rendered under `?takingss=1`, the app sets data-capture-ready="true"
+// on the capture frame (and dispatches `capture:ready` on document), and
+// clears it again if the page drops back to a loading state. Only the
+// attribute is checked — it is state, so it can't be missed the way an event
+// fired before the listener attached can. Same constraints as
+// captureReadyCheck: self-contained, serialized into the browser.
+function captureSignalCheck(captureSelector) {
+    const captureElement = document.querySelector(captureSelector)
+
+    return Boolean(captureElement) && captureElement.getAttribute('data-capture-ready') === 'true'
+}
+
+// True once every image in the captured element has loaded — the image gate
+// from captureReadyCheck on its own. The capture-ready signal covers the app's
+// data, spinners and charts, not image downloads, so the signal path checks
+// this separately before printing. Same constraints as captureReadyCheck.
+function captureImagesLoaded(captureSelector) {
+    const captureElement = document.querySelector(captureSelector)
+
+    if (!captureElement) {
+        return false
+    }
+
+    return Array.from(captureElement.querySelectorAll('img')).every((image) => image.complete && image.naturalWidth > 0)
+}
+
+module.exports = { captureReadyCheck, frameFingerprint, hasNoSpinner, captureSignalCheck, captureImagesLoaded }
