@@ -7,7 +7,7 @@ import { a4, isDetailPage, pdfOptions, renderSettings } from "./pdfLayout.js"
 // Static import on purpose: the bundler traces node_modules from these, not
 // from `require()` calls inside the CJS helpers (see pdfScale.js).
 import { PDFDocument } from "pdf-lib"
-import { captureReadyCheck, frameFingerprint, hasNoSpinner } from "./captureReady.js"
+import { captureReadyCheck, captureSignalCheck, frameFingerprint, hasNoSpinner } from "./captureReady.js"
 import {
     readyReserve,
     readyTimeout,
@@ -116,7 +116,9 @@ const renderBookletPage = async (browser, url, { credentials, startedAt }) => {
         if (!response?.ok()) {
             throw new Error(`returned ${response ? response.status() : 'no response'}`)
         }
-        await page.waitForSelector('html[data-capture-ready]', { timeout: safeTimeout(startedAt, bookletPageTimeout) })
+        // Same contract as the detail pages' signal: only data-capture-ready="true"
+        // on <html> means ready, not the attribute's mere presence.
+        await page.waitForFunction(captureSignalCheck, { timeout: safeTimeout(startedAt, bookletPageTimeout) }, 'html')
 
         return await page.pdf({ ...bookletPdfOptions, timeout: safeTimeout(startedAt, bookletPageTimeout) })
     } catch (error) {
