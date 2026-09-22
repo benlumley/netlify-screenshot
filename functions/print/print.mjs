@@ -1,9 +1,9 @@
 import qs from "qs"
 import { launchBrowser, closeBrowser } from "../shared/chromium.mjs"
 import { safeTimeout, requestHeaders, errorResponse } from "../shared/capture.mjs"
-import { isAllowedCoverUrl, deriveFilename, mergeCover } from "./pdfCover.js"
+import { assembleBooklet, bookletPageUrls, deriveFilename } from "./pdfBooklet.js"
 import { scalePagesTo } from "./pdfScale.js"
-import { a4, pdfOptions, renderSettings } from "./pdfLayout.js"
+import { a4, isDetailPage, pdfOptions, renderSettings } from "./pdfLayout.js"
 // Static import on purpose: the bundler traces node_modules from these, not
 // from `require()` calls inside the CJS helpers (see pdfScale.js).
 import { PDFDocument } from "pdf-lib"
@@ -26,15 +26,30 @@ export const config = {
     memory: "4gb",
 }
 
-// Merged PDFs above this size risk the synchronous Netlify response cap
-// (~6MB); fall back to the coverless PDF rather than returning a 502.
+// Booklets above this size risk the synchronous Netlify response cap
+// (~6MB); fall back to the content-only PDF rather than returning a 502.
 // The 0.75 keeps the cap byte-equivalent to the v1 handler's 5.5MB base64
 // limit (base64 inflates by 4/3) — deliberately unchanged in the v2 port.
 const maxCoveredBytes = 5.5 * 1024 * 1024 * 0.75
 
-// Abort the cover fetch if it stalls, so a slow asset host degrades to the
-// coverless PDF instead of hanging the whole function into a Lambda timeout.
-const coverFetchTimeout = 8000
+// Each wait while rendering the booklet's cover/back pages is bounded by this
+// (and by the remaining Lambda budget), so a slow or broken page degrades to
+// the content-only PDF instead of hanging the function into a Lambda timeout.
+const bookletPageTimeout = 8000
+
+// The profile name printed on the cover; longer values are cut to this.
+const maxTitleLength = 200
+
+// The app authors the cover and back pages at A4 with their own padding, so
+// they print edge to edge at scale 1 — no pdfScale pass (they have no
+// breakpoints to protect).
+const bookletPdfOptions = {
+    width: `${a4.widthMm}mm`,
+    height: `${a4.heightMm}mm`,
+    margin: { top: '0', right: '0', bottom: '0', left: '0' },
+    scale: 1,
+    printBackground: true,
+}
 
 const height = 1200
 
@@ -75,6 +90,43 @@ const waitForHeuristicReady = async (page, selector, startedAt) => {
     }
 }
 
+// Resolves to `promise`'s value, or to `fallback` once `ms` has passed — so steps
+// without their own timeout (opening/closing a tab) can't hold the response.
+const withinBudget = (promise, ms, fallback) => {
+    let timer
+    return Promise.race([
+        promise,
+        new Promise((resolve) => { timer = setTimeout(() => resolve(fallback), ms) }),
+    ]).finally(() => clearTimeout(timer))
+}
+
+// Prints one of the app's booklet pages (cover or back) in its own tab of the
+// shared browser. Resolves to null on any failure — the caller then returns the
+// content-only PDF — so it never rejects into the main flow.
+const renderBookletPage = async (browser, url, { credentials, startedAt }) => {
+    let page
+    try {
+        page = await browser.newPage()
+        if (credentials) {
+            await page.authenticate(credentials)
+        }
+        await page.setUserAgent(userAgent)
+        await page.setExtraHTTPHeaders(requestHeaders())
+        const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: safeTimeout(startedAt, bookletPageTimeout) })
+        if (!response?.ok()) {
+            throw new Error(`returned ${response ? response.status() : 'no response'}`)
+        }
+        await page.waitForSelector('html[data-capture-ready]', { timeout: safeTimeout(startedAt, bookletPageTimeout) })
+
+        return await page.pdf({ ...bookletPdfOptions, timeout: safeTimeout(startedAt, bookletPageTimeout) })
+    } catch (error) {
+        console.warn(`booklet page failed (${url}):`, error?.message || error)
+        return null
+    } finally {
+        await page?.close().catch(() => {})
+    }
+}
+
 export default async (req) => {
     const startedAt = Date.now()
     const logTime = (label) => console.log(`${label}: ${Date.now() - startedAt}ms`)
@@ -86,8 +138,10 @@ export default async (req) => {
     if (path.indexOf('favicon.ico') > -1) {
         return new Response(null, { status: 404 })
     }
-    // `cover` is service-only (the PDF to prepend); never forward it to the app.
-    const { cover: coverUrl, ...forwardedParams } = Object.fromEntries(requestUrl.searchParams)
+    // `title` is service-only (the name for the booklet cover); never forward it to
+    // the app. Nor the retired `cover` param, from callers not yet updated.
+    const { title: rawTitle = '', cover: _retiredCover, ...forwardedParams } = Object.fromEntries(requestUrl.searchParams)
+    const title = Array.from(rawTitle).slice(0, maxTitleLength).join('')
     const queryStringParameters = {
         ...forwardedParams,
         takingss: 1,
@@ -101,8 +155,21 @@ export default async (req) => {
     browser = await launchBrowser()
 
     logTime('browser launched')
-    const page = await browser.newPage();
     const credentials = httpCredentials()
+
+    // The detail pages print as booklets. Their cover and back render in tabs of
+    // their own alongside the profile page, so they cost no extra wall time
+    // against the Lambda budget.
+    let bookletPages = null
+    if (isDetailPage(path)) {
+        const { cover, back } = bookletPageUrls({ baseUrl: process.env.BASE_URL, path, title })
+        bookletPages = Promise.all([
+            renderBookletPage(browser, cover, { credentials, startedAt }),
+            renderBookletPage(browser, back, { credentials, startedAt }),
+        ])
+    }
+
+    const page = await browser.newPage();
     if (credentials) {
         await page.authenticate(credentials)
     }
@@ -136,41 +203,27 @@ export default async (req) => {
     const pdf = await scalePagesTo(printed, { scale, width: a4.widthPt, height: a4.heightPt, PDFDocument })
     logTime('pdf scaled to A4')
 
-  // Prepend the cover if one was requested. Any failure here degrades to the
-  // coverless PDF (Principle 4) — it must never turn into a hard error, so the
-  // fetch/merge and pdf-lib require are isolated in their own try/catch.
+  // Wrap the detail pages in their booklet. Any failure here degrades to the
+  // content-only PDF — it must never turn into a hard error.
   let responseBody = pdf
 
-  if (coverUrl) {
+  if (bookletPages) {
     try {
-      if (!isAllowedCoverUrl(coverUrl)) {
-        console.warn('cover rejected (not https/allowlisted):', coverUrl)
+      const [cover, back] = await withinBudget(bookletPages, safeTimeout(startedAt, bookletPageTimeout, 2000), [null, null])
+      if (!cover || !back) {
+        console.warn('booklet cover/back unavailable; returning content only')
       } else {
-        // `redirect: 'error'` keeps the SSRF allowlist honest — a 3xx from an
-        // allowlisted host can't bounce the fetch to an unvalidated URL. The
-        // abort timeout bounds a slow download so it degrades to coverless.
-        const controller = new AbortController()
-        const coverTimeout = setTimeout(() => controller.abort(), safeTimeout(startedAt, coverFetchTimeout))
-        try {
-          const coverResponse = await fetch(coverUrl, { redirect: 'error', signal: controller.signal })
-          if (!coverResponse.ok) {
-            throw new Error(`cover fetch failed: ${coverResponse.status}`)
-          }
-          const coverBuffer = Buffer.from(await coverResponse.arrayBuffer())
-          const merged = await mergeCover(pdf, coverBuffer, { PDFDocument })
+        const booklet = await assembleBooklet(pdf, { cover, back, PDFDocument })
 
-          if (merged.length > maxCoveredBytes) {
-            console.warn('merged pdf exceeds response cap; returning coverless')
-          } else {
-            responseBody = merged
-            logTime('cover merged')
-          }
-        } finally {
-          clearTimeout(coverTimeout)
+        if (booklet.length > maxCoveredBytes) {
+          console.warn('booklet pdf exceeds response cap; returning content only')
+        } else {
+          responseBody = booklet
+          logTime('booklet assembled')
         }
       }
     } catch (error) {
-      console.warn('cover merge failed; returning coverless:', error?.message || error)
+      console.warn('booklet assembly failed; returning content only:', error?.message || error)
     }
   }
 
