@@ -141,6 +141,17 @@ test('signal: only the exact value "true" counts', () => {
     assert.equal(captureSignalCheck('#frame'), false)
 })
 
+test('signal: on <html> (the booklet cover/back pages), only "true" counts', () => {
+    const doc = setDom('')
+    const html = doc.documentElement
+    html.setAttribute('data-capture-ready', '1')
+    assert.equal(captureSignalCheck('html'), false)
+    html.setAttribute('data-capture-ready', 'false')
+    assert.equal(captureSignalCheck('html'), false)
+    html.setAttribute('data-capture-ready', 'true')
+    assert.equal(captureSignalCheck('html'), true)
+})
+
 test('signal: a descendant carrying the attribute does not count', () => {
     setDom('<div id="frame"><div data-capture-ready="true"></div></div>')
     assert.equal(captureSignalCheck('#frame'), false)

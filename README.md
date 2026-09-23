@@ -25,6 +25,12 @@ If you want to change the `BASE_URL` edit the site's environment variables from 
 
 Download filenames are prefixed with the IIAG edition year (e.g. `2026-iiag.png`, `2026-IIAG-profile-nga.pdf`). Set `IIAG_YEAR` in the same place to change it for a new edition; it defaults to `2026`. Like any env change, it only reaches the functions after a redeploy.
 
+### Profile booklets
+
+PDFs of the measure/location/group detail pages (`/print[/<lng>]/locations/<slug>.html`, `/print[/<lng>]/measures/<id>.html`) are assembled as printable booklets: cover, blank inside cover, the content pages, a blank only when needed to make the page count even, then the back cover. The cover and back are printed from the app's `{BASE_URL}/[<lng>/]print-cover.html?title=<name>` and `{BASE_URL}/[<lng>/]print-back.html`, in tabs alongside the profile page; the language path comes from the request path, and the app bakes the language into each page.
+
+Pass the profile name for the cover as `?title=<name>` (capped at 200 characters). It is only used by the service and is not forwarded to the profile page. If the cover or back can't be printed, or the booklet would exceed the response size cap, the content pages are returned on their own. The Data page PDF is unaffected.
+
 
 Usage
 -----
