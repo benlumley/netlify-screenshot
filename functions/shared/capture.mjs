@@ -23,7 +23,8 @@ export const requestHeaders = () => {
 
 // Lets the portal fetch the capture itself (to show progress and surface
 // errors) rather than navigating a tab to it. Public, credential-less GETs, so
-// a wildcard origin is enough and no preflight handler is needed.
+// a wildcard origin is enough; plain GETs don't preflight (preflightResponse
+// covers callers that add headers).
 export const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Expose-Headers": "Content-Disposition",
