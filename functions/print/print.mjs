@@ -1,6 +1,6 @@
 import qs from "qs"
 import { launchBrowser, closeBrowser } from "../shared/chromium.mjs"
-import { safeTimeout, requestHeaders, errorResponse } from "../shared/capture.mjs"
+import { safeTimeout, requestHeaders, errorResponse, corsHeaders, preflightResponse } from "../shared/capture.mjs"
 import { assembleBooklet, bookletPageUrls, deriveFilename } from "./pdfBooklet.js"
 import { scalePagesTo } from "./pdfScale.js"
 import { a4, isDetailPage, pdfOptions, renderSettings } from "./pdfLayout.js"
@@ -130,6 +130,11 @@ const renderBookletPage = async (browser, url, { credentials, startedAt }) => {
 }
 
 export default async (req) => {
+    const preflight = preflightResponse(req)
+    if (preflight) {
+        return preflight
+    }
+
     const startedAt = Date.now()
     const logTime = (label) => console.log(`${label}: ${Date.now() - startedAt}ms`)
     let browser
@@ -232,6 +237,7 @@ export default async (req) => {
   return new Response(responseBody, {
     status: 200,
     headers: {
+      ...corsHeaders,
       "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename=${filename}`,
       "Cache-Control": `public, max-age=${maxage}`,

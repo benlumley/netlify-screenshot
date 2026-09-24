@@ -1,6 +1,6 @@
 import qs from "qs"
 import { launchBrowser, closeBrowser } from "../shared/chromium.mjs"
-import { safeTimeout, requestHeaders, errorResponse } from "../shared/capture.mjs"
+import { safeTimeout, requestHeaders, errorResponse, corsHeaders, preflightResponse } from "../shared/capture.mjs"
 import { captureReadyCheck } from "../print/captureReady.js"
 import { httpCredentials } from "../shared/httpAuth.js"
 import { iiagYear } from "../shared/iiagYear.js"
@@ -39,6 +39,11 @@ const waitForHeuristicReady = async (page, selector, startedAt) => {
 }
 
 export default async (req) => {
+    const preflight = preflightResponse(req)
+    if (preflight) {
+        return preflight
+    }
+
     const startedAt = Date.now()
     const logTime = (label) => console.log(`${label}: ${Date.now() - startedAt}ms`)
     let browser
@@ -97,6 +102,7 @@ export default async (req) => {
     return new Response(screenshot, {
         status: 200,
         headers: {
+            ...corsHeaders,
             "Cache-Control": `public, max-age=${maxage}`,
             "Content-Type": "image/png",
             "Content-Disposition": `attachment; filename=${iiagYear()}-iiag.png`,

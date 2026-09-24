@@ -21,6 +21,32 @@ export const requestHeaders = () => {
     return headers
 }
 
+// Lets the portal fetch the capture itself (to show progress and surface
+// errors) rather than navigating a tab to it. Public, credential-less GETs, so
+// a wildcard origin is enough; plain GETs don't preflight (preflightResponse
+// covers callers that add headers).
+export const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Expose-Headers": "Content-Disposition",
+}
+
+// Answers a CORS preflight without launching Chrome. Plain portal fetches
+// never preflight, but a caller adding a header would otherwise run (and
+// discard) a full render just to be refused.
+export const preflightResponse = (req) => (
+    req.method === 'OPTIONS'
+        ? new Response(null, {
+            status: 204,
+            headers: {
+                ...corsHeaders,
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+                "Access-Control-Max-Age": "86400",
+            },
+        })
+        : null
+)
+
 export const errorResponse = (error) => {
     const isTimeout = error?.name === 'TimeoutError'
 
@@ -32,6 +58,7 @@ export const errorResponse = (error) => {
         {
             status: isTimeout ? 504 : 500,
             headers: {
+                ...corsHeaders,
                 "Cache-Control": "no-store",
                 "Content-Type": "application/json",
             },
