@@ -157,3 +157,19 @@ test('errors other than a timeout during the signal wait propagate', async () =>
         /Execution context was destroyed/,
     )
 })
+
+test('a cold start gets the remaining budget to render the frame, not a fixed 10s', async () => {
+    setDom(frame())
+    let frameTimeout
+    const page = fakePage({
+        waitForSelector: async (selector, { timeout }) => {
+            frameTimeout = timeout
+        },
+    })
+    // dom loaded ~4s in, as on a cold start.
+    await waitForCaptureReady(page, {
+        signals: false, requireImages: false, startedAt: Date.now() - 4000, waitForHeuristic: heuristicSpy(),
+    })
+    assert.ok(frameTimeout > 10000, `frame wait was ${frameTimeout}ms`)
+    assert.ok(frameTimeout <= 15000, 'still leaves the capture reserve')
+})

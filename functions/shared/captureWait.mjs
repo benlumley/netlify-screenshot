@@ -82,7 +82,11 @@ const settleOnSignal = async (page, { requireImages, startedAt }) => {
 // `waitForHeuristic(page, captureSelector, startedAt)` is the handler's own
 // fallback wait, run unchanged.
 export const waitForCaptureReady = async (page, { signals, requireImages, startedAt, waitForHeuristic }) => {
-    await page.waitForSelector(captureSelector, { timeout: safeTimeout(startedAt, selectorTimeout) })
+    // The frame gets the whole remaining budget (less the capture reserve), not
+    // a fixed selectorTimeout: on a cold start (fresh Chromium, empty cache) the
+    // page took over 10s to render it on ss-test (Sept 2026) with ~5s of the
+    // budget still unused, while warm runs show it within ~1.5s of dom loaded.
+    await page.waitForSelector(captureSelector, { timeout: safeTimeout(startedAt, readyTimeout, readyReserve) })
 
     // End the grace at least 1s before the heuristic's deadline (skipping it
     // when there isn't that much left), so falling back never extends it.
