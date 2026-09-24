@@ -252,12 +252,20 @@ export default async (req) => {
                 widthLatin: width('500 16px museo-sans, noto-sans-arabic, sans-serif', 'Governance'),
                 preloads: Array.from(document.querySelectorAll('link[rel="preload"]')).map((l) => l.getAttribute('href')),
                 probe: window.__fontProbe,
+                appliedFonts: window.__applied,
                 canvases: Array.from(document.querySelectorAll('canvas')).map((c) => ({
                     w: c.width, h: c.height, cssW: Math.round(c.getBoundingClientRect().width), cssH: Math.round(c.getBoundingClientRect().height),
                 })),
                 // Can this browser rasterise Arabic into a canvas at all?
                 drawTest: (() => {
-                    const stacks = ['500 24px museo-sans, noto-sans-arabic, sans-serif', '500 24px noto-sans-arabic', '500 24px museo-sans']
+                    const raw = getComputedStyle(document.body).getPropertyValue('--base-font')
+                    const chartDefault = (window.Chart && window.Chart.defaults && window.Chart.defaults.font) || {}
+                    const stacks = [
+                        `500 24px ${raw}`,
+                        `500 24px ${raw.trim()}`,
+                        `500 24px ${chartDefault.family || 'no-chart-default'}`,
+                        '500 24px museo-sans, noto-sans-arabic, sans-serif',
+                    ]
                     const c = document.createElement('canvas')
                     c.width = 640
                     c.height = 40 * stacks.length + 10
@@ -265,10 +273,13 @@ export default async (req) => {
                     ctx.fillStyle = '#fff'
                     ctx.fillRect(0, 0, c.width, c.height)
                     ctx.fillStyle = '#000'
+                    const applied = []
                     stacks.forEach((font, i) => {
                         ctx.font = font
+                        applied.push(`${font}  ->  ${ctx.font}`)
                         ctx.fillText('الأمن وسيادة القانون ABC', 10, 30 + i * 40)
                     })
+                    window.__applied = applied
                     try { return c.toDataURL('image/png') } catch (e) { return `error: ${e.message}` }
                 })(),
                 // The sub-category radar, as the printing browser has drawn it.
