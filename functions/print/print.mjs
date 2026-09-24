@@ -187,6 +187,34 @@ export default async (req) => {
     await page.evaluateOnNewDocument(() => {
         Object.defineProperty(navigator, 'webdriver', { get: () => undefined })
     })
+
+    // TEMPORARY (font-debug branch): record when the first chart canvas appears
+    // and whether the Arabic face was usable at that exact moment.
+    await page.evaluateOnNewDocument(() => {
+        window.__fontProbe = { canvasAt: null, arabicUsableAtCanvas: null, facesAtCanvas: null, arabicFirstUsableAt: null }
+        const arabic = 'الأمن وسيادة القانون'
+        const poll = setInterval(() => {
+            if (window.__fontProbe.arabicFirstUsableAt === null && document.fonts.check('500 16px noto-sans-arabic', arabic)) {
+                window.__fontProbe.arabicFirstUsableAt = Math.round(performance.now())
+            }
+        }, 25)
+        const start = () => {
+            const observer = new MutationObserver(() => {
+                if (window.__fontProbe.canvasAt === null && document.querySelector('canvas')) {
+                    window.__fontProbe.canvasAt = Math.round(performance.now())
+                    window.__fontProbe.arabicUsableAtCanvas = document.fonts.check('500 16px noto-sans-arabic', arabic)
+                    window.__fontProbe.facesAtCanvas = Array.from(document.fonts).filter((f) => f.family.includes('noto')).map((f) => `${f.weight}/${f.status}`)
+                    clearInterval(poll)
+                }
+            })
+            observer.observe(document.body, { childList: true, subtree: true })
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', start)
+        } else {
+            start()
+        }
+    })
     page.setDefaultNavigationTimeout(safeTimeout(startedAt, navigationTimeout, 8000))
     page.setDefaultTimeout(safeTimeout(startedAt, selectorTimeout))
     logTime('page ready')
@@ -223,6 +251,7 @@ export default async (req) => {
                 widthSystemSans: width('500 16px sans-serif', arabic),
                 widthLatin: width('500 16px museo-sans, noto-sans-arabic, sans-serif', 'Governance'),
                 preloads: Array.from(document.querySelectorAll('link[rel="preload"]')).map((l) => l.getAttribute('href')),
+                probe: window.__fontProbe,
             }
         })
         return new Response(JSON.stringify(debug, null, 1), {
