@@ -252,6 +252,14 @@ export default async (req) => {
                 widthLatin: width('500 16px museo-sans, noto-sans-arabic, sans-serif', 'Governance'),
                 preloads: Array.from(document.querySelectorAll('link[rel="preload"]')).map((l) => l.getAttribute('href')),
                 probe: window.__fontProbe,
+                canvases: Array.from(document.querySelectorAll('canvas')).map((c) => ({
+                    w: c.width, h: c.height, cssW: Math.round(c.getBoundingClientRect().width), cssH: Math.round(c.getBoundingClientRect().height),
+                })),
+                // The sub-category radar, as the printing browser has drawn it.
+                radar: (() => {
+                    const c = document.querySelectorAll('canvas')[2]
+                    try { return c ? c.toDataURL('image/png') : null } catch (e) { return `error: ${e.message}` }
+                })(),
             }
         })
         return new Response(JSON.stringify(debug, null, 1), {
