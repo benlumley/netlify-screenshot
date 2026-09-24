@@ -203,6 +203,34 @@ export default async (req) => {
     })
     logTime(`capture ready (${readyVia})`)
 
+    // TEMPORARY (font-debug branch, do not merge): report what the printing
+    // browser can actually see, so the Arabic chart-label failure can be
+    // diagnosed in the environment where it happens.
+    if (requestUrl.searchParams.get('fontdebug') === '1') {
+        const debug = await page.evaluate(() => {
+            const ctx = document.createElement('canvas').getContext('2d')
+            const width = (font, text) => { ctx.font = font; return Math.round(ctx.measureText(text).width * 100) / 100 }
+            const arabic = 'الأمن وسيادة القانون'
+            return {
+                dir: document.documentElement.getAttribute('dir'),
+                baseFontVar: getComputedStyle(document.body).getPropertyValue('--base-font'),
+                faces: Array.from(document.fonts).map((f) => `${f.family}/${f.weight}/${f.status}`),
+                checkArabic: document.fonts.check('500 16px noto-sans-arabic', arabic),
+                checkStack: document.fonts.check('500 16px museo-sans, noto-sans-arabic, sans-serif', arabic),
+                widthArabicOnly: width('500 16px noto-sans-arabic', arabic),
+                widthSiteStack: width('500 16px museo-sans, noto-sans-arabic, sans-serif', arabic),
+                widthMuseoOnly: width('500 16px museo-sans', arabic),
+                widthSystemSans: width('500 16px sans-serif', arabic),
+                widthLatin: width('500 16px museo-sans, noto-sans-arabic, sans-serif', 'Governance'),
+                preloads: Array.from(document.querySelectorAll('link[rel="preload"]')).map((l) => l.getAttribute('href')),
+            }
+        })
+        return new Response(JSON.stringify(debug, null, 1), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+        })
+    }
+
     await page.emulateMediaType('screen');
     const printed = await page.pdf({ printBackground: true, ...pdfOptions(scale) })
     logTime('pdf created')
