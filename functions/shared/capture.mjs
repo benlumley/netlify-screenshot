@@ -18,7 +18,29 @@ export const requestHeaders = () => {
         headers['X-IDP-Build-Key'] = process.env.BUILD_BYPASS_KEY
     }
 
+    // Cloudflare WAF skip rule for these functions on the non-live targets
+    // (front end and API); kept separate from the build key so each can be
+    // rotated on its own.
+    if (process.env.IDP_NETLIFY_KEY) {
+        headers['X-IDP-Netlify-Key'] = process.env.IDP_NETLIFY_KEY
+    }
+
     return headers
+}
+
+// A WAF block page (403) loads like any other page, so without this the
+// capture just times out waiting for a frame that never renders.
+export const assertTargetResponse = (response) => {
+    if (!response || response.ok()) {
+        return
+    }
+
+    const status = response.status()
+    const hint = status === 401 || status === 407
+        ? 'check HTTP_AUTH_USER/HTTP_AUTH_PASS'
+        : 'check the Cloudflare WAF rule and IDP_NETLIFY_KEY'
+
+    throw new Error(`Target returned ${status} for ${response.url()} — ${hint}`)
 }
 
 // Lets the portal fetch the capture itself (to show progress and surface

@@ -1,6 +1,6 @@
 import qs from "qs"
 import { launchBrowser, closeBrowser } from "../shared/chromium.mjs"
-import { safeTimeout, requestHeaders, errorResponse, corsHeaders, preflightResponse } from "../shared/capture.mjs"
+import { safeTimeout, requestHeaders, assertTargetResponse, errorResponse, corsHeaders, preflightResponse } from "../shared/capture.mjs"
 import { captureReadyCheck } from "../print/captureReady.js"
 import { httpCredentials } from "../shared/httpAuth.js"
 import { iiagYear } from "../shared/iiagYear.js"
@@ -80,9 +80,7 @@ export default async (req) => {
     page.setDefaultTimeout(safeTimeout(startedAt, selectorTimeout))
     logTime('page ready')
     const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: safeTimeout(startedAt, navigationTimeout, 8000) })
-    if (response && (response.status() === 401 || response.status() === 407)) {
-        throw new Error(`Target returned ${response.status()} — check HTTP_AUTH_USER/HTTP_AUTH_PASS`)
-    }
+    assertTargetResponse(response)
     logTime('dom loaded')
     // The PNG path has never gated on images; the signal path keeps that.
     const readyVia = await waitForCaptureReady(page, {
